@@ -223,6 +223,11 @@ struct ContentView: View {
                     } label: {
                         Label("标签管理…", systemImage: "tag")
                     }
+                    Button {
+                        Task { await viewModel.refreshNow(store: store) }
+                    } label: {
+                        Label("立即刷新状态", systemImage: "arrow.clockwise")
+                    }
                     Divider()
                     Button {
                         let dir = ServiceStore.defaultFileURL.deletingLastPathComponent()
@@ -387,10 +392,7 @@ struct ContentView: View {
         }
         .task {
             viewModel.commandLog = commandLog
-            viewModel.start(store: store)
-        }
-        .onDisappear {
-            viewModel.stop()
+            viewModel.start(store: store) // 幂等；轮询由 AppDelegate 全局启动
         }
     }
 

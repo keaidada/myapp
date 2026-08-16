@@ -6,16 +6,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var store: ServiceStore?
     private var log: CommandLog?
     private var quickLaunch: QuickLaunchController?
+    private var viewModel: DashboardViewModel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate()
         Task { await Notifier.requestPermission() }
     }
 
-    /// 由主界面 onAppear 注入数据源并启动全局热键
-    func configure(store: ServiceStore, commandLog: CommandLog) {
+    /// 由主界面 onAppear 注入数据源；同时全局启动轮询（窗口关闭后仍持续监控）
+    func configure(store: ServiceStore, commandLog: CommandLog, viewModel: DashboardViewModel) {
         self.store = store
         self.log = commandLog
+        self.viewModel = viewModel
+        viewModel.commandLog = commandLog
+        viewModel.start(store: store)
+
         guard quickLaunch == nil else { return }
         let controller = QuickLaunchController(
             storeProvider: { [weak self] in self?.store },
@@ -44,7 +49,7 @@ struct myappApp: App {
                 .environment(viewModel)
                 .environment(commandLog)
                 .onAppear {
-                    appDelegate.configure(store: store, commandLog: commandLog)
+                    appDelegate.configure(store: store, commandLog: commandLog, viewModel: viewModel)
                 }
                 .frame(minWidth: 720, minHeight: 480)
         }
