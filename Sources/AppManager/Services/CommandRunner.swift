@@ -30,16 +30,23 @@ enum CommandRunner {
     ) async throws -> CommandResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", command]
+        process.arguments = ["-c", command]
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = defaultPath
-        env.merge(environment) { _, new in new }
+        env.merge(environment) { _, newEnv in newEnv }
         process.environment = env
 
         let outPipe = Pipe()
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
+        process.standardInput = FileHandle.nullDevice
+
+        // 先注册终止回调再启动，避免快退出的命令漏掉回调导致误判超时
+        let exited = AsyncStream<Void>.makeStream()
+        process.terminationHandler = { _ in
+            exited.continuation.yield()
+        }
 
         do {
             try process.run()
@@ -60,9 +67,7 @@ enum CommandRunner {
                     throw CommandRunnerError.timeout(seconds: timeout)
                 }
                 group.addTask {
-                    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-                        process.terminationHandler = { _ in cont.resume() }
-                    }
+                    _ = await exited.stream.first(where: { _ in true })
                 }
                 try await group.next()
                 group.cancelAll()

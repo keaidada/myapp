@@ -18,8 +18,12 @@ struct ServiceController {
             }
             let url = URL(fileURLWithPath: path)
             let config = NSWorkspace.OpenConfiguration()
-            let app = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
-            return CommandResult(exitCode: app != nil ? 0 : 1, stdout: "已启动 \(service.name)", stderr: "")
+            do {
+                _ = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
+                return CommandResult(exitCode: 0, stdout: "已启动 \(service.name)", stderr: "")
+            } catch {
+                return CommandResult(exitCode: 1, stdout: "", stderr: error.localizedDescription)
+            }
         case .url:
             guard let url = service.url, !url.isEmpty else {
                 throw CommandRunnerError.launchFailed("未设置网址")
