@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var showingEditor = false
     @State private var showingTemplates = false
+    @State private var showingDiscovery = false
     @State private var showingHistory = false
     @State private var editingService: ManagedService?
     @State private var exporting = false
@@ -103,6 +104,11 @@ struct ContentView: View {
                     } label: {
                         Label("从模板添加", systemImage: "books.vertical")
                     }
+                    Button {
+                        showingDiscovery = true
+                    } label: {
+                        Label("从系统发现…", systemImage: "magnifyingglass.circle")
+                    }
                 } label: {
                     Label("添加服务", systemImage: "plus")
                 }
@@ -117,6 +123,9 @@ struct ContentView: View {
             TemplatePickerView { template in
                 try? store.add(template.makeService())
             }
+        }
+        .sheet(isPresented: $showingDiscovery) {
+            DiscoveryView()
         }
         .sheet(isPresented: $showingHistory) {
             HistoryView()

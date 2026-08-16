@@ -27,10 +27,7 @@ struct ServiceRowView: View {
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
 
-            Image(systemName: service.icon)
-                .font(.title3)
-                .foregroundStyle(.tint)
-                .frame(width: 28)
+            ServiceIconView(service: service, size: 26)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(service.name)

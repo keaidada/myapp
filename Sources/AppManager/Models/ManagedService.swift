@@ -17,4 +17,5 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
     var pidPattern: String?    // 资源监控用进程名匹配（可选）
     var sortOrder: Int = 0
     var variables: [String: String] = [:] // 命令模板变量（P4）
+    var appIconData: Data?     // 真实应用图标 PNG（kind == .app 时可选）
 }
