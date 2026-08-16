@@ -62,6 +62,32 @@ struct ServiceController {
         return try await runner(cmd)
     }
 
+    /// 关闭服务：应用→优雅退出进程；命令类→执行 stop 命令
+    func quit(_ service: ManagedService) async -> CommandResult {
+        if service.kind == .app {
+            guard let path = service.appPath,
+                  let bid = bundleIdentifier(for: path) else {
+                return CommandResult(exitCode: 1, stdout: "", stderr: "无法识别应用")
+            }
+            guard let app = NSWorkspace.shared.runningApplications.first(where: {
+                $0.bundleIdentifier == bid && !$0.isTerminated
+            }) else {
+                return CommandResult(exitCode: 1, stdout: "", stderr: "应用未在运行")
+            }
+            let ok = app.terminate()
+            return CommandResult(
+                exitCode: ok ? 0 : 1,
+                stdout: ok ? "已发送关闭请求" : "关闭失败",
+                stderr: ""
+            )
+        }
+        if let stop = service.stopCommand, !stop.isEmpty {
+            return (try? await runner(stop))
+                ?? CommandResult(exitCode: -1, stdout: "", stderr: "关闭命令执行失败")
+        }
+        return CommandResult(exitCode: -1, stdout: "", stderr: "未配置关闭命令")
+    }
+
     /// 状态检测：按服务类型选择正确方式
     /// - app：进程是否在运行 → running / stopped
     /// - 有健康检查地址：网络检测 → healthy / down

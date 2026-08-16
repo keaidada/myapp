@@ -60,6 +60,25 @@ struct ServiceControllerTests {
         #expect(ran == ["echo start"])
     }
 
+    @Test func quitCommandServiceUsesStopCommand() async {
+        var ran: [String] = []
+        let controller = ServiceController { cmd in
+            ran.append(cmd)
+            return CommandResult(exitCode: 0, stdout: "", stderr: "")
+        }
+        let service = ManagedService(name: "X", category: "C", kind: .command, command: "echo start", stopCommand: "echo stop")
+        let result = await controller.quit(service)
+        #expect(result.exitCode == 0)
+        #expect(ran == ["echo stop"])
+    }
+
+    @Test func quitWithoutStopCommandFails() async {
+        let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
+        let service = ManagedService(name: "X", category: "C", kind: .command, command: "echo start")
+        let result = await controller.quit(service)
+        #expect(result.exitCode != 0)
+    }
+
     @Test func appLaunchRequiresPath() async {
         let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
         let service = ManagedService(name: "X", category: "C", kind: .app)

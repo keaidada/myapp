@@ -92,37 +92,55 @@ struct ServiceRowView: View {
                 .controlSize(.small)
                 .help("管理该服务的标签")
 
-                Button {
-                    isLaunching = true
-                    Task {
-                        defer { isLaunching = false }
-                        let result = (try? await controller.launch(service))
-                            ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
-                        log.record(
-                            serviceName: service.name,
-                            command: CommandLogging.launchCommandText(for: service),
-                            result: result
-                        )
-                        if result.exitCode != 0 {
-                            output = result
-                            showOutput = true
-                        }
-                    }
-                } label: {
-                    if isLaunching {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("启动", systemImage: "play.fill")
-                    }
+                // 主按钮：运行中 → 关闭；未运行 → 启动
+                if status.isHealthy {
+                    mainActionButton.buttonStyle(.bordered).controlSize(.small)
+                } else {
+                    mainActionButton.buttonStyle(.borderedProminent).controlSize(.small)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
             }
         }
         .padding(.vertical, 4)
         .sheet(isPresented: $showOutput) {
             if let output {
                 CommandOutputView(result: output)
+            }
+        }
+    }
+
+    /// 主操作按钮：运行中关闭、未运行启动
+    private var mainActionButton: Button<some View> {
+        Button {
+            isLaunching = true
+            Task {
+                defer { isLaunching = false }
+                let result: CommandResult
+                if status.isHealthy {
+                    result = (try? await controller.quit(service))
+                        ?? CommandResult(exitCode: -1, stdout: "", stderr: "关闭失败")
+                } else {
+                    result = (try? await controller.launch(service))
+                        ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+                }
+                log.record(
+                    serviceName: service.name,
+                    command: CommandLogging.launchCommandText(for: service),
+                    result: result
+                )
+                // 立即刷新该服务状态
+                viewModel.statuses[service.id] = await controller.status(service)
+                if result.exitCode != 0 {
+                    output = result
+                    showOutput = true
+                }
+            }
+        } label: {
+            if isLaunching {
+                ProgressView().controlSize(.small)
+            } else if status.isHealthy {
+                Label("关闭", systemImage: "stop.fill")
+            } else {
+                Label("启动", systemImage: "play.fill")
             }
         }
     }
