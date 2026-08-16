@@ -74,6 +74,20 @@ enum CommandRunner {
             }
         } catch CommandRunnerError.timeout {
             didTimeout = true
+            // SIGTERM 后必须等进程真正退出再读 terminationStatus，否则抛
+            // NSInvalidArgumentException "task still running"。有界等待：
+            // 2 秒内退出即继续；否则 SIGKILL 强杀。
+            try? await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    _ = await exited.stream.first(where: { _ in true })
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(2))
+                    if process.isRunning {
+                        kill(process.processIdentifier, SIGKILL)
+                    }
+                }
+            }
         }
 
         let stdout = String(data: (try? await outData) ?? Data(), encoding: .utf8) ?? ""
