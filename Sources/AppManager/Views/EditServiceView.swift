@@ -19,6 +19,7 @@ struct EditServiceView: View {
     @State private var restartCommand: String
     @State private var pidPattern: String
     @State private var variablesText: String
+    @State private var showingIconPicker = false
 
     init(service: ManagedService?, onSave: @escaping (ManagedService) -> Void) {
         self.service = service
@@ -44,6 +45,26 @@ struct EditServiceView: View {
         Form {
             TextField("名称", text: $name)
             TextField("分类", text: $category)
+
+            HStack {
+                Text("图标")
+                Spacer()
+                Button {
+                    showingIconPicker = true
+                } label: {
+                    HStack {
+                        Image(systemName: icon)
+                            .font(.title3)
+                            .frame(width: 32, height: 32)
+                            .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                        Text("选择…")
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .popover(isPresented: $showingIconPicker, arrowEdge: .bottom) {
+                iconPicker
+            }
 
             Picker("类型", selection: $kind) {
                 ForEach(ServiceKind.allCases) { k in
@@ -98,6 +119,36 @@ struct EditServiceView: View {
         .frame(width: 520)
     }
 
+    private var iconPicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("选择图标")
+                .font(.headline)
+            TextField("或输入 SF Symbol 名称", text: $icon)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 220)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 8), spacing: 8) {
+                ForEach(IconCatalog.symbols, id: \.self) { symbol in
+                    Button {
+                        icon = symbol
+                        showingIconPicker = false
+                    } label: {
+                        Image(systemName: symbol)
+                            .font(.title3)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                icon == symbol ? Color.accentColor.opacity(0.25) : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(symbol)
+                }
+            }
+            .frame(width: 300)
+        }
+        .padding(12)
+    }
+
     private func parseVariables(_ text: String) -> [String: String] {
         var result: [String: String] = [:]
         for line in text.split(separator: "\n") {
@@ -115,7 +166,7 @@ struct EditServiceView: View {
             id: service?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespaces),
             category: category.trimmingCharacters(in: .whitespaces),
-            icon: icon,
+            icon: icon.trimmingCharacters(in: .whitespaces).isEmpty ? "square.stack.3d.up" : icon,
             kind: kind,
             appPath: kind == .app ? appPath : nil,
             url: kind == .url ? url : nil,

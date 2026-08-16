@@ -13,6 +13,7 @@ struct AppManagerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store: ServiceStore
     @State private var viewModel = DashboardViewModel()
+    @State private var commandLog = CommandLog()
 
     init() {
         _store = State(initialValue: ServiceStore())
@@ -23,13 +24,18 @@ struct AppManagerApp: App {
             ContentView()
                 .environment(store)
                 .environment(viewModel)
+                .environment(commandLog)
                 .frame(minWidth: 720, minHeight: 480)
         }
         .defaultSize(width: 900, height: 600)
 
-        MenuBarExtra("AppManager", systemImage: "square.stack.3d.up") {
+        MenuBarExtra {
             MenuBarView()
                 .environment(store)
+                .environment(viewModel)
+                .environment(commandLog)
+        } label: {
+            MenuBarIcon()
                 .environment(viewModel)
         }
         .menuBarExtraStyle(.window)

@@ -9,6 +9,11 @@ struct ServiceController {
         self.runner = runner
     }
 
+    /// 直接执行任意命令（运行历史重跑用）
+    func run(_ command: String) async throws -> CommandResult {
+        try await runner(command)
+    }
+
     /// 一键启动：按类型分发
     func launch(_ service: ManagedService) async throws -> CommandResult {
         switch service.kind {
@@ -50,9 +55,15 @@ struct ServiceController {
         try await runner(service.restartCommand ?? "")
     }
 
+    func runStatus(_ service: ManagedService) async throws -> CommandResult {
+        guard let cmd = service.statusCommand, !cmd.isEmpty else {
+            return CommandResult(exitCode: -1, stdout: "", stderr: "未配置状态命令")
+        }
+        return try await runner(cmd)
+    }
+
     func status(_ service: ManagedService) async throws -> ServiceStatus {
-        guard let cmd = service.statusCommand, !cmd.isEmpty else { return .unknown }
-        let result = try await runner(cmd)
+        let result = try await runStatus(service)
         return result.exitCode == 0 ? .healthy(latencyMs: 0) : .down(reason: "进程未运行")
     }
 }

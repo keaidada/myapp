@@ -3,6 +3,7 @@ import SwiftUI
 struct ServiceRowView: View {
     let service: ManagedService
     @Environment(DashboardViewModel.self) private var viewModel
+    @Environment(CommandLog.self) private var log
     @State private var controller = ServiceController()
     @State private var isLaunching = false
     @State private var output: CommandResult?
@@ -51,6 +52,10 @@ struct ServiceRowView: View {
                     Task {
                         let status = (try? await controller.status(service)) ?? .unknown
                         viewModel.statuses[service.id] = status
+                        if let cmd = service.statusCommand {
+                            let result = (try? await controller.runStatus(service)) ?? CommandResult(exitCode: -1, stdout: "", stderr: "状态查询失败")
+                            log.record(serviceName: service.name, command: cmd, result: result)
+                        }
                     }
                 } label: {
                     Label("状态", systemImage: "stethoscope")
@@ -61,7 +66,17 @@ struct ServiceRowView: View {
                     isLaunching = true
                     Task {
                         defer { isLaunching = false }
-                        _ = try? await controller.launch(service)
+                        let result = (try? await controller.launch(service))
+                            ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+                        log.record(
+                            serviceName: service.name,
+                            command: CommandLogging.launchCommandText(for: service),
+                            result: result
+                        )
+                        if result.exitCode != 0 {
+                            output = result
+                            showOutput = true
+                        }
                     }
                 } label: {
                     if isLaunching {
@@ -90,6 +105,7 @@ struct ServiceRowView: View {
         Button {
             Task {
                 let result = (try? await action()) ?? CommandResult(exitCode: -1, stdout: "", stderr: "执行失败")
+                log.record(serviceName: service.name, command: title, result: result)
                 output = result
                 showOutput = true
             }
