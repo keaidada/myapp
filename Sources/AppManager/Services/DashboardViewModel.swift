@@ -6,17 +6,20 @@ import Observation
 final class DashboardViewModel {
     var statuses: [UUID: ServiceStatus] = [:]
     var resources: [UUID: ProcessSample] = [:]
+    var pollInterval: TimeInterval = 10
+    var notifyOnDown = true
     private var monitorTask: Task<Void, Never>?
+    private var lastDown: Set<UUID> = []
     private(set) var isMonitoring = false
 
-    /// 启动定时轮询：健康检查 + 资源采样，统一每 10 秒一轮
+    /// 启动定时轮询：健康检查 + 资源采样，统一每个 pollInterval 一轮
     func start(store: ServiceStore) {
         guard monitorTask == nil else { return }
         isMonitoring = true
         monitorTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh(store: store)
-                try? await Task.sleep(for: .seconds(10))
+                try? await Task.sleep(for: .seconds(self?.pollInterval ?? 10))
             }
         }
     }
@@ -45,6 +48,18 @@ final class DashboardViewModel {
         guard let url = service.checkURL else { return }
         let status = await HealthChecker.check(urlString: url)
         statuses[service.id] = status
+
+        if notifyOnDown {
+            switch status {
+            case .down:
+                if !lastDown.contains(service.id) {
+                    lastDown.insert(service.id)
+                    await Notifier.notify(title: service.name, body: "服务已离线")
+                }
+            default:
+                lastDown.remove(service.id)
+            }
+        }
     }
 
     private func sampleResources(matching services: [ManagedService]) async {
