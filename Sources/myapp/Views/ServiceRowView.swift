@@ -65,9 +65,6 @@ struct ServiceRowView: View {
             Spacer()
 
             HStack(spacing: 6) {
-                if service.stopCommand != nil {
-                    controlButton("停止", systemImage: "stop.fill") { try await controller.stop(service) }
-                }
                 if service.restartCommand != nil {
                     controlButton("重启", systemImage: "arrow.clockwise") { try await controller.restart(service) }
                 }
