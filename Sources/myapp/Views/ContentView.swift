@@ -54,7 +54,13 @@ struct ContentView: View {
                 onDelete: { try? store.delete($0) },
                 onMove: { indices, offset in
                     try? store.move(fromOffsets: indices, toOffset: offset)
-                }
+                },
+                selectedCount: selectedIDs.count,
+                onLaunchSelected: { runSelected(.launch) },
+                onStopSelected: { runSelected(.stop) },
+                onRestartSelected: { runSelected(.restart) },
+                onDeleteSelected: { showDeleteConfirm = true },
+                onClearSelection: { selectedIDs = [] }
             )
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "搜索服务…")

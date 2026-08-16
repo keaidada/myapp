@@ -6,6 +6,12 @@ struct ServiceListView: View {
     let onEdit: (ManagedService) -> Void
     let onDelete: (ManagedService) -> Void
     var onMove: ((IndexSet, Int) -> Void)? = nil
+    var selectedCount = 0
+    var onLaunchSelected: (() -> Void)? = nil
+    var onStopSelected: (() -> Void)? = nil
+    var onRestartSelected: (() -> Void)? = nil
+    var onDeleteSelected: (() -> Void)? = nil
+    var onClearSelection: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -37,6 +43,37 @@ struct ServiceListView: View {
                     )
                 }
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if selectedCount > 0 {
+                    selectionBar
+                }
+            }
         }
+    }
+
+    /// 选中服务后底部弹出的批量操作栏
+    private var selectionBar: some View {
+        HStack(spacing: 10) {
+            Text("已选择 \(selectedCount) 项")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("启动") { onLaunchSelected?() }
+            Button("停止") { onStopSelected?() }
+            Button("重启") { onRestartSelected?() }
+            Button("删除", role: .destructive) { onDeleteSelected?() }
+            Divider().frame(height: 16)
+            Button {
+                onClearSelection?()
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("清除选择")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .animation(.easeInOut(duration: 0.15), value: selectedCount)
     }
 }
