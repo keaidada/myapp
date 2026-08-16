@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(ServiceStore.self) private var store
     @Environment(DashboardViewModel.self) private var viewModel
+    @Environment(CommandLog.self) private var commandLog
     @State private var filter: SidebarFilter? = .all
     @State private var searchText = ""
     @State private var showingEditor = false
@@ -287,6 +288,7 @@ struct ContentView: View {
             Text(alertMessage ?? "")
         }
         .task {
+            viewModel.commandLog = commandLog
             viewModel.start(store: store)
         }
         .onDisappear {

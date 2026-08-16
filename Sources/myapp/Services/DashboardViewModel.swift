@@ -9,8 +9,13 @@ final class DashboardViewModel {
     var resources: [UUID: ProcessSample] = [:]
     var pollInterval: TimeInterval = 10
     var notifyOnDown = true
+    var autoRestartEnabled = false
+    var autoRestartMaxAttempts = 3
+    var autoRestartInterval: TimeInterval = 30
+    var commandLog: CommandLog?
     private var monitorTask: Task<Void, Never>?
     private var lastDown: Set<UUID> = []
+    private var restartAttempts: [UUID: Int] = [:]
     private var bundleIDCache: [String: String] = [:]
     private let controller = ServiceController()
     private(set) var isMonitoring = false
@@ -64,6 +69,7 @@ final class DashboardViewModel {
             let status = await HealthChecker.check(urlString: resolved)
             statuses[service.id] = status
             notifyIfDown(service, status)
+            handleAutoRestart(service, status)
             return
         }
 
@@ -79,6 +85,42 @@ final class DashboardViewModel {
         // 都没有：保持未知
     }
 
+    // ── 自动唤醒 ──
+
+    private func handleAutoRestart(_ service: ManagedService, _ status: ServiceStatus) {
+        // 恢复健康：清零重试计数
+        if case .healthy = status {
+            restartAttempts.removeValue(forKey: service.id)
+            return
+        }
+        guard AutoRestartPolicy.shouldRestart(service: service, status: status, enabled: autoRestartEnabled) else {
+            return
+        }
+        let attempts = restartAttempts[service.id] ?? 0
+        guard attempts < autoRestartMaxAttempts else { return }
+        restartAttempts[service.id] = attempts + 1
+        let interval = autoRestartInterval
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(interval))
+            guard let self, !Task.isCancelled else { return }
+            await self.performRestart(service, attempt: attempts + 1)
+        }
+    }
+
+    private func performRestart(_ service: ManagedService, attempt: Int) async {
+        let startCmd = service.startCommand ?? service.command ?? ""
+        guard !startCmd.isEmpty else { return }
+        let result = (try? await controller.start(service))
+            ?? CommandResult(exitCode: -1, stdout: "", stderr: "自动唤醒失败")
+        commandLog?.record(
+            serviceName: service.name,
+            command: "自动唤醒(尝试\(attempt)): \(startCmd)",
+            result: result
+        )
+    }
+
+    // ── 其它 ──
+
     private func appIsRunning(_ service: ManagedService) -> Bool {
         guard let path = service.appPath else { return false }
         let bid = bundleIDCache[path] ?? bundleIdentifier(for: path)
@@ -91,7 +133,6 @@ final class DashboardViewModel {
         return false
     }
 
-    /// 从应用的 Info.plist 读取 CFBundleIdentifier
     private func bundleIdentifier(for appPath: String) -> String? {
         let plistPath = (appPath as NSString).appendingPathComponent("Contents/Info.plist")
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: plistPath)),
