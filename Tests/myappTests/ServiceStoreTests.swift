@@ -81,12 +81,10 @@ struct ServiceStoreTests {
         try store.add(b)
         try store.add(c)
 
-        // 把 C 移到最前面
         try store.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
         #expect(store.services.map(\.name) == ["C", "A", "B"])
         #expect(store.services.map(\.sortOrder) == [0, 1, 2])
 
-        // 持久化验证
         let reloaded = ServiceStore(fileURL: fileURL)
         #expect(reloaded.services.map(\.name) == ["C", "A", "B"])
     }
@@ -122,5 +120,36 @@ struct ServiceStoreTests {
         try store.importData(data)
         #expect(store.services.count == 1)
         #expect(store.services[0].name == "新")
+    }
+
+    @Test func addAllDeduplicatesByName() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileURL = dir.appendingPathComponent("services.json")
+        let store = ServiceStore(fileURL: fileURL)
+        try store.add(ManagedService(name: "A", category: "C"))
+
+        let added = try store.addAll([
+            ManagedService(name: "A", category: "C"),  // 重复，跳过
+            ManagedService(name: "B", category: "C"),
+            ManagedService(name: "C", category: "C")
+        ])
+        #expect(added == 2)
+        #expect(store.services.count == 3)
+
+        // 持久化验证
+        let reloaded = ServiceStore(fileURL: fileURL)
+        #expect(reloaded.services.count == 3)
+    }
+
+    @Test func addAllEmptyDoesNothing() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let store = ServiceStore(fileURL: dir.appendingPathComponent("services.json"))
+        let added = try store.addAll([])
+        #expect(added == 0)
+        #expect(store.services.isEmpty)
     }
 }

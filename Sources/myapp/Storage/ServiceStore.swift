@@ -39,6 +39,17 @@ final class ServiceStore {
         try save()
     }
 
+    /// 批量添加：按名称去重，一次写盘
+    @discardableResult
+    func addAll(_ newServices: [ManagedService]) throws -> Int {
+        let existing = Set(services.map(\.name))
+        let toAdd = newServices.filter { !existing.contains($0.name) }
+        guard !toAdd.isEmpty else { return 0 }
+        services.append(contentsOf: toAdd)
+        try save()
+        return toAdd.count
+    }
+
     func update(_ service: ManagedService) throws {
         guard let idx = services.firstIndex(where: { $0.id == service.id }) else { return }
         services[idx] = service

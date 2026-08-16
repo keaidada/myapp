@@ -21,6 +21,14 @@ struct DiscoveryView: View {
         Set(store.services.map(\.name))
     }
 
+    private var notAddedApps: [InstalledApp] {
+        apps.filter { !existingNames.contains($0.name) }
+    }
+
+    private var notAddedBrew: [BrewService] {
+        brewServices.filter { !existingNames.contains($0.name) }
+    }
+
     private var filteredApps: [InstalledApp] {
         guard !searchText.isEmpty else { return apps }
         return apps.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
@@ -68,27 +76,42 @@ struct DiscoveryView: View {
 
     // ── 已安装应用 ──
     private var appList: some View {
-        List(filteredApps) { app in
-            HStack(spacing: 12) {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
-                    .resizable()
-                    .frame(width: 28, height: 28)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(app.name)
-                    Text(app.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        VStack(spacing: 0) {
+            addAllBar(count: notAddedApps.count, label: "全部添加应用") {
+                let services = notAddedApps.map { app in
+                    ManagedService(
+                        name: app.name,
+                        category: "应用",
+                        icon: "app",
+                        kind: .app,
+                        appPath: app.path,
+                        appIconData: appIconData(for: app.path)
+                    )
                 }
-                Spacer()
-                addAppButton(app)
+                try? store.addAll(services)
             }
-            .padding(.vertical, 2)
-        }
-        .overlay {
-            if apps.isEmpty {
-                ProgressView("正在扫描应用…")
+            List(filteredApps) { app in
+                HStack(spacing: 12) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: app.path))
+                        .resizable()
+                        .frame(width: 28, height: 28)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(app.name)
+                        Text(app.path)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                    addAppButton(app)
+                }
+                .padding(.vertical, 2)
+            }
+            .overlay {
+                if apps.isEmpty {
+                    ProgressView("正在扫描应用…")
+                }
             }
         }
     }
@@ -114,42 +137,47 @@ struct DiscoveryView: View {
 
     // ── Homebrew 服务 ──
     private var brewList: some View {
-        Group {
-            if let brewError {
-                ContentUnavailableView(
-                    "无法读取 Homebrew 服务",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(brewError)
-                )
-            } else if filteredBrew.isEmpty && !isLoadingBrew {
-                ContentUnavailableView(
-                    "未发现 Homebrew 服务",
-                    systemImage: "server.rack",
-                    description: Text("本机暂无 brew services 管理的服务")
-                )
-            } else {
-                List(filteredBrew) { service in
-                    HStack(spacing: 12) {
-                        Image(systemName: "server.rack")
-                            .font(.title3)
-                            .foregroundStyle(.tint)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(service.name)
-                            Text(statusText(service))
-                                .font(.caption)
-                                .foregroundStyle(statusColor(service))
+        VStack(spacing: 0) {
+            addAllBar(count: notAddedBrew.count, label: "全部添加服务") {
+                try? store.addAll(notAddedBrew.map { $0.makeService() })
+            }
+            Group {
+                if let brewError {
+                    ContentUnavailableView(
+                        "无法读取 Homebrew 服务",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(brewError)
+                    )
+                } else if filteredBrew.isEmpty && !isLoadingBrew {
+                    ContentUnavailableView(
+                        "未发现 Homebrew 服务",
+                        systemImage: "server.rack",
+                        description: Text("本机暂无 brew services 管理的服务")
+                    )
+                } else {
+                    List(filteredBrew) { service in
+                        HStack(spacing: 12) {
+                            Image(systemName: "server.rack")
+                                .font(.title3)
+                                .foregroundStyle(.tint)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(service.name)
+                                Text(statusText(service))
+                                    .font(.caption)
+                                    .foregroundStyle(statusColor(service))
+                            }
+                            Spacer()
+                            addBrewButton(service)
                         }
-                        Spacer()
-                        addBrewButton(service)
+                        .padding(.vertical, 2)
                     }
-                    .padding(.vertical, 2)
                 }
             }
-        }
-        .overlay {
-            if isLoadingBrew && brewServices.isEmpty {
-                ProgressView("正在读取 brew services list…")
+            .overlay {
+                if isLoadingBrew && brewServices.isEmpty {
+                    ProgressView("正在读取 brew services list…")
+                }
             }
         }
     }
@@ -165,6 +193,25 @@ struct DiscoveryView: View {
         .disabled(added)
     }
 
+    // ── 顶部"全部添加"工具条 ──
+    private func addAllBar(count: Int, label: String, action: @escaping () -> Void) -> some View {
+        HStack {
+            Text(count > 0 ? "还有 \(count) 项未添加" : "已全部添加")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button(action: action) {
+                Label(label, systemImage: "plus.circle.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(count == 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
     // ── 辅助 ──
     private func loadTab(_ tab: DiscoveryTab) async {
         switch tab {
@@ -176,8 +223,10 @@ struct DiscoveryView: View {
             if brewServices.isEmpty && !isLoadingBrew {
                 isLoadingBrew = true
                 defer { isLoadingBrew = false }
-                do {
-                    brewServices = await BrewDiscoverer.discover()
+                brewServices = await BrewDiscoverer.discover()
+                if brewServices.isEmpty {
+                    brewError = "brew services list 无输出，可能未安装 Homebrew 或没有服务"
+                } else {
                     brewError = nil
                 }
             }
