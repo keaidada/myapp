@@ -107,4 +107,40 @@ final class ServiceStore {
         var seen = Set<String>()
         return services.map(\.category).filter { seen.insert($0).inserted }.sorted()
     }
+
+    /// 所有标签（去重排序）
+    var allTags: [String] {
+        var seen = Set<String>()
+        return services.flatMap(\.tags).filter { seen.insert($0).inserted }.sorted()
+    }
+
+    /// 给一组服务批量添加标签（去重、一次写盘）
+    func addTag(_ tag: String, to ids: Set<UUID>) throws {
+        let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var changed = false
+        for i in services.indices where ids.contains(services[i].id) {
+            if !services[i].tags.contains(trimmed) {
+                services[i].tags.append(trimmed)
+                changed = true
+            }
+        }
+        if changed {
+            try save()
+        }
+    }
+
+    /// 移除服务的某个标签
+    func removeTag(_ tag: String, from ids: Set<UUID>) throws {
+        var changed = false
+        for i in services.indices where ids.contains(services[i].id) {
+            if services[i].tags.contains(tag) {
+                services[i].tags.removeAll { $0 == tag }
+                changed = true
+            }
+        }
+        if changed {
+            try save()
+        }
+    }
 }

@@ -11,6 +11,7 @@ struct ServiceListView: View {
     var onStopSelected: (() -> Void)? = nil
     var onRestartSelected: (() -> Void)? = nil
     var onDeleteSelected: (() -> Void)? = nil
+    var onAddTagSelected: (() -> Void)? = nil
     var onClearSelection: (() -> Void)? = nil
 
     var body: some View {
@@ -62,6 +63,7 @@ struct ServiceListView: View {
             Button("停止") { onStopSelected?() }
             Button("重启") { onRestartSelected?() }
             Button("删除", role: .destructive) { onDeleteSelected?() }
+            Button("标签") { onAddTagSelected?() }
             Divider().frame(height: 16)
             Button {
                 onClearSelection?()

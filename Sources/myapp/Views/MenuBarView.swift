@@ -87,9 +87,10 @@ struct MenuBarView: View {
 
     private func statusColor(_ service: ManagedService) -> Color {
         switch viewModel.statuses[service.id] ?? .unknown {
-        case .healthy: .green
+        case .healthy, .running: .green
         case .down: .red
-        case .unknown: .gray
+        case .stopped: .gray
+        case .unknown: .gray.opacity(0.5)
         }
     }
 }

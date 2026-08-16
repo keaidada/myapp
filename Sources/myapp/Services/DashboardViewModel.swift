@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import AppKit
 
 @MainActor
 @Observable
@@ -10,6 +11,8 @@ final class DashboardViewModel {
     var notifyOnDown = true
     private var monitorTask: Task<Void, Never>?
     private var lastDown: Set<UUID> = []
+    private var bundleIDCache: [String: String] = [:]
+    private let controller = ServiceController()
     private(set) var isMonitoring = false
 
     /// 启动定时轮询：健康检查 + 资源采样，统一每个 pollInterval 一轮
@@ -30,6 +33,10 @@ final class DashboardViewModel {
         isMonitoring = false
     }
 
+    func refreshNow(store: ServiceStore) async {
+        await refresh(store: store)
+    }
+
     private func refresh(store: ServiceStore) async {
         let services = store.services
         await withTaskGroup(of: Void.self) { group in
@@ -45,22 +52,65 @@ final class DashboardViewModel {
     }
 
     private func checkOne(_ service: ManagedService) async {
-        guard let url = service.checkURL else { return }
-        // 支持 {key} 模板变量
-        let resolved = Placeholder.substitute(url, values: service.variables)
-        let status = await HealthChecker.check(urlString: resolved)
-        statuses[service.id] = status
+        // 应用类：直接检测进程是否在运行
+        if service.kind == .app {
+            statuses[service.id] = appIsRunning(service) ? .running : .stopped
+            return
+        }
 
-        if notifyOnDown {
-            switch status {
-            case .down:
-                if !lastDown.contains(service.id) {
-                    lastDown.insert(service.id)
-                    await Notifier.notify(title: service.name, body: "服务已离线")
-                }
-            default:
-                lastDown.remove(service.id)
+        // 有健康检查 URL：网络检测
+        if let url = service.checkURL {
+            let resolved = Placeholder.substitute(url, values: service.variables)
+            let status = await HealthChecker.check(urlString: resolved)
+            statuses[service.id] = status
+            notifyIfDown(service, status)
+            return
+        }
+
+        // 有状态命令：命令检测
+        if service.statusCommand != nil {
+            let result = (try? await controller.runStatus(service))
+                ?? CommandResult(exitCode: -1, stdout: "", stderr: "状态查询失败")
+            let status: ServiceStatus = result.exitCode == 0 ? .running : .stopped
+            statuses[service.id] = status
+            return
+        }
+
+        // 都没有：保持未知
+    }
+
+    private func appIsRunning(_ service: ManagedService) -> Bool {
+        guard let path = service.appPath else { return false }
+        let bid = bundleIDCache[path] ?? bundleIdentifier(for: path)
+        bundleIDCache[path] = bid
+        if let bid {
+            return NSWorkspace.shared.runningApplications.contains {
+                $0.bundleIdentifier == bid && !$0.isTerminated
             }
+        }
+        return false
+    }
+
+    /// 从应用的 Info.plist 读取 CFBundleIdentifier
+    private func bundleIdentifier(for appPath: String) -> String? {
+        let plistPath = (appPath as NSString).appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: plistPath)),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+                as? [String: Any],
+              let bid = plist["CFBundleIdentifier"] as? String else { return nil }
+        return bid
+    }
+
+    private func notifyIfDown(_ service: ManagedService, _ status: ServiceStatus) {
+        guard notifyOnDown else { return }
+        switch status {
+        case .down:
+            if !lastDown.contains(service.id) {
+                lastDown.insert(service.id)
+                Task { await Notifier.notify(title: service.name, body: "服务已离线") }
+            }
+        default:
+            lastDown.remove(service.id)
         }
     }
 
@@ -77,7 +127,7 @@ final class DashboardViewModel {
         }
     }
 
-    /// 是否有服务离线（菜单栏汇总用）
+    /// 是否有服务处于故障（离线）状态
     var hasDownService: Bool {
         statuses.values.contains { status in
             if case .down = status { return true }

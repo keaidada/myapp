@@ -15,9 +15,10 @@ struct ServiceRowView: View {
 
     private var statusColor: Color {
         switch status {
-        case .healthy: .green
+        case .healthy, .running: .green
         case .down: .red
-        case .unknown: .gray
+        case .stopped: .gray
+        case .unknown: .gray.opacity(0.5)
         }
     }
 

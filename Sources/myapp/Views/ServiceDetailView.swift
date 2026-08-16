@@ -59,6 +59,16 @@ struct ServiceDetailView: View {
                     }
                 }
             }
+
+            if !service.tags.isEmpty {
+                Section("标签") {
+                    FlowLayout(spacing: 6) {
+                        ForEach(service.tags, id: \.self) { tag in
+                            TagCapsule(text: tag)
+                        }
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .navigationTitle(service.name)

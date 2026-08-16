@@ -3,12 +3,13 @@ import SwiftUI
 struct ContentView: View {
     @Environment(ServiceStore.self) private var store
     @Environment(DashboardViewModel.self) private var viewModel
-    @State private var selectedCategory: String? = "全部"
+    @State private var filter: SidebarFilter? = .all
     @State private var searchText = ""
     @State private var showingEditor = false
     @State private var showingTemplates = false
     @State private var showingDiscovery = false
     @State private var showingHistory = false
+    @State private var showingBatchTag = false
     @State private var editingService: ManagedService?
     @State private var exporting = false
     @State private var importing = false
@@ -18,13 +19,38 @@ struct ContentView: View {
     @State private var selectedIDs: Set<ManagedService.ID> = []
     @State private var showDeleteConfirm = false
 
+    enum SidebarFilter: Hashable {
+        case all
+        case category(String)
+        case tag(String)
+        case untagged
+
+        var label: String {
+            switch self {
+            case .all: "全部"
+            case .category(let c): c
+            case .tag(let t): t
+            case .untagged: "未打标签"
+            }
+        }
+    }
+
     private var filteredServices: [ManagedService] {
         store.services
-            .filter { selectedCategory == nil || selectedCategory == "全部" || $0.category == selectedCategory }
+            .filter { service in
+                switch filter {
+                case .all: true
+                case .category(let c): service.category == c
+                case .tag(let t): service.tags.contains(t)
+                case .untagged: service.tags.isEmpty
+                case nil: true
+                }
+            }
             .filter {
                 searchText.isEmpty
                     || $0.name.localizedCaseInsensitiveContains(searchText)
                     || $0.category.localizedCaseInsensitiveContains(searchText)
+                    || $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
             }
             .sorted { ($0.sortOrder, $0.name) < ($1.sortOrder, $1.name) }
     }
@@ -39,13 +65,27 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedCategory) {
-                Text("全部").tag(String?.some("全部"))
-                ForEach(store.categories, id: \.self) { category in
-                    Text(category).tag(String?.some(category))
+            List(selection: $filter) {
+                Section("服务") {
+                    Text("全部").tag(SidebarFilter.all)
+                    ForEach(store.categories, id: \.self) { category in
+                        Text(category).tag(SidebarFilter.category(category))
+                    }
+                }
+                Section("标签") {
+                    Text("未打标签").tag(SidebarFilter.untagged)
+                    ForEach(store.allTags, id: \.self) { tag in
+                        HStack(spacing: 6) {
+                            Image(systemName: "tag")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(tag)
+                        }
+                        .tag(SidebarFilter.tag(tag))
+                    }
                 }
             }
-            .navigationSplitViewColumnWidth(min: 140, ideal: 160)
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
             ServiceListView(
                 services: filteredServices,
@@ -60,6 +100,7 @@ struct ContentView: View {
                 onStopSelected: { runSelected(.stop) },
                 onRestartSelected: { runSelected(.restart) },
                 onDeleteSelected: { showDeleteConfirm = true },
+                onAddTagSelected: { showingBatchTag = true },
                 onClearSelection: { selectedIDs = [] }
             )
         }
@@ -76,6 +117,8 @@ struct ContentView: View {
                         Button("停止选中\(selectedCountSuffix)") { runSelected(.stop) }
                             .disabled(selectedIDs.isEmpty)
                         Button("重启选中\(selectedCountSuffix)") { runSelected(.restart) }
+                            .disabled(selectedIDs.isEmpty)
+                        Button("打标签\(selectedCountSuffix)") { showingBatchTag = true }
                             .disabled(selectedIDs.isEmpty)
                         Button("删除选中\(selectedCountSuffix)", role: .destructive) {
                             showDeleteConfirm = true
@@ -160,6 +203,15 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingHistory) {
             HistoryView()
+        }
+        .sheet(isPresented: $showingBatchTag) {
+            BatchTagView(
+                selectedCount: selectedIDs.count,
+                existingTags: store.allTags,
+                onApply: { tag in
+                    try? store.addTag(tag, to: selectedIDs)
+                }
+            )
         }
         .sheet(item: $editingService) { service in
             EditServiceView(service: service) { updated in

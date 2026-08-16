@@ -19,6 +19,7 @@ struct EditServiceView: View {
     @State private var restartCommand: String
     @State private var pidPattern: String
     @State private var variablesText: String
+    @State private var tagsText: String
     @State private var showingIconPicker = false
 
     init(service: ManagedService?, onSave: @escaping (ManagedService) -> Void) {
@@ -39,6 +40,7 @@ struct EditServiceView: View {
         _pidPattern = State(initialValue: service?.pidPattern ?? "")
         let vars = service?.variables ?? [:]
         _variablesText = State(initialValue: vars.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: "\n"))
+        _tagsText = State(initialValue: (service?.tags ?? []).joined(separator: ", "))
     }
 
     var body: some View {
@@ -86,6 +88,10 @@ struct EditServiceView: View {
                 TextField("健康检查地址", text: $checkURL, prompt: Text("http://localhost:4000/health"))
                 TextField("状态命令", text: $statusCommand, prompt: Text("pgrep -f my-service"))
                 TextField("进程名匹配（资源监控）", text: $pidPattern, prompt: Text("redis-server"))
+            }
+
+            Section("标签") {
+                TextField("多个标签用逗号分隔", text: $tagsText, prompt: Text("例如：工作, 娱乐, 开发"))
             }
 
             Section("控制命令（可选）") {
@@ -149,6 +155,15 @@ struct EditServiceView: View {
         .padding(12)
     }
 
+    private func parseTags(_ text: String) -> [String] {
+        var seen = Set<String>()
+        return text
+            .split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" || $0 == " " })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
+    }
+
     private func parseVariables(_ text: String) -> [String: String] {
         var result: [String: String] = [:]
         for line in text.split(separator: "\n") {
@@ -178,7 +193,8 @@ struct EditServiceView: View {
             restartCommand: restartCommand.isEmpty ? nil : restartCommand,
             pidPattern: pidPattern.isEmpty ? nil : pidPattern,
             sortOrder: service?.sortOrder ?? 0,
-            variables: kind == .command ? parseVariables(variablesText) : [:]
+            variables: kind == .command ? parseVariables(variablesText) : [:],
+            tags: parseTags(tagsText)
         )
     }
 }
