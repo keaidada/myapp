@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var renameTarget: String?
     @State private var renameText = ""
     @State private var deleteTagTarget: String?
+    @State private var showingTagManager = false
 
     enum SidebarFilter: Hashable {
         case all
@@ -76,6 +77,25 @@ struct ContentView: View {
                     ForEach(store.categories, id: \.self) { category in
                         Text(category).tag(SidebarFilter.category(category))
                     }
+                }
+                Section {
+                    HStack {
+                        Text("标签")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Button {
+                            showingTagManager = true
+                        } label: {
+                            Label("管理", systemImage: "slider.horizontal.3")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                        .help("打开标签管理窗口")
+                    }
+                } header: {
+                    Text("标签")
                 }
                 Section("标签") {
                     Text("未打标签").tag(SidebarFilter.untagged)
@@ -183,6 +203,11 @@ struct ContentView: View {
                     } label: {
                         Label("导入配置…", systemImage: "square.and.arrow.down")
                     }
+                    Button {
+                        showingTagManager = true
+                    } label: {
+                        Label("标签管理…", systemImage: "tag")
+                    }
                     Divider()
                     Button {
                         let dir = ServiceStore.defaultFileURL.deletingLastPathComponent()
@@ -230,6 +255,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingHistory) {
             HistoryView()
+        }
+        .sheet(isPresented: $showingTagManager) {
+            TagManagerView()
         }
         .sheet(isPresented: $showingBatchTag) {
             BatchTagView(
