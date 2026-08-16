@@ -2,10 +2,27 @@ import SwiftUI
 
 struct ServiceRowView: View {
     let service: ManagedService
+    @Environment(DashboardViewModel.self) private var viewModel
     @State private var isLaunching = false
+
+    private var status: ServiceStatus {
+        viewModel.statuses[service.id] ?? .unknown
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .healthy: .green
+        case .down: .red
+        case .unknown: .gray
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+
             Image(systemName: service.icon)
                 .font(.title3)
                 .foregroundStyle(.tint)
@@ -13,7 +30,7 @@ struct ServiceRowView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(service.name)
-                Text(service.kind.displayName + (service.category.isEmpty ? "" : " · \(service.category)"))
+                Text(statusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -38,5 +55,12 @@ struct ServiceRowView: View {
             .controlSize(.small)
         }
         .padding(.vertical, 4)
+    }
+
+    private var statusText: String {
+        var parts: [String] = []
+        if !service.category.isEmpty { parts.append(service.category) }
+        parts.append(status.label)
+        return parts.joined(separator: " · ")
     }
 }

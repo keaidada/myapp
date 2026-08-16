@@ -4,6 +4,7 @@ import AppKit
 @main
 struct AppManagerApp: App {
     @State private var store: ServiceStore
+    @State private var viewModel = DashboardViewModel()
 
     init() {
         // 从命令行（swift run）启动时，确保窗口能正常获得焦点
@@ -16,6 +17,7 @@ struct AppManagerApp: App {
         WindowGroup {
             ContentView()
                 .environment(store)
+                .environment(viewModel)
                 .frame(minWidth: 720, minHeight: 480)
         }
     }

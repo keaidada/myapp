@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(ServiceStore.self) private var store
+    @Environment(DashboardViewModel.self) private var viewModel
     @State private var selectedCategory: String? = "全部"
     @State private var searchText = ""
     @State private var showingEditor = false
@@ -53,6 +54,12 @@ struct ContentView: View {
             EditServiceView(service: service) { updated in
                 try? store.update(updated)
             }
+        }
+        .task {
+            viewModel.start(store: store)
+        }
+        .onDisappear {
+            viewModel.stop()
         }
     }
 }
