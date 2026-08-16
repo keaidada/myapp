@@ -46,7 +46,9 @@ final class DashboardViewModel {
 
     private func checkOne(_ service: ManagedService) async {
         guard let url = service.checkURL else { return }
-        let status = await HealthChecker.check(urlString: url)
+        // 支持 {key} 模板变量
+        let resolved = Placeholder.substitute(url, values: service.variables)
+        let status = await HealthChecker.check(urlString: resolved)
         statuses[service.id] = status
 
         if notifyOnDown {
@@ -72,6 +74,22 @@ final class DashboardViewModel {
                 .filter { $0.command.localizedCaseInsensitiveContains(pattern) }
                 .max(by: { $0.cpu < $1.cpu })
             resources[service.id] = best
+        }
+    }
+
+    /// 是否有服务离线（菜单栏汇总用）
+    var hasDownService: Bool {
+        statuses.values.contains { status in
+            if case .down = status { return true }
+            return false
+        }
+    }
+
+    /// 离线服务数
+    var downCount: Int {
+        statuses.values.reduce(0) { count, status in
+            if case .down = status { return count + 1 }
+            return count
         }
     }
 }

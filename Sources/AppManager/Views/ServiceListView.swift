@@ -4,6 +4,7 @@ struct ServiceListView: View {
     let services: [ManagedService]
     let onEdit: (ManagedService) -> Void
     let onDelete: (ManagedService) -> Void
+    var onMove: ((IndexSet, Int) -> Void)? = nil
     @State private var selectedID: ManagedService.ID?
 
     var body: some View {
@@ -17,6 +18,9 @@ struct ServiceListView: View {
                         Button("编辑…") { onEdit(service) }
                         Button("删除", role: .destructive) { onDelete(service) }
                     }
+                }
+                .onMove { indices, offset in
+                    onMove?(indices, offset)
                 }
             }
             .navigationDestination(for: ManagedService.ID.self) { id in

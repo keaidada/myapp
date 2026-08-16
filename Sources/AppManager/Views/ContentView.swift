@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var selectedCategory: String? = "全部"
     @State private var searchText = ""
     @State private var showingEditor = false
+    @State private var showingTemplates = false
     @State private var editingService: ManagedService?
 
     private var filteredServices: [ManagedService] {
@@ -29,17 +30,29 @@ struct ContentView: View {
             }
             .navigationSplitViewColumnWidth(min: 140, ideal: 160)
         } detail: {
-            ServiceListView(services: filteredServices) { service in
-                editingService = service
-            } onDelete: { service in
-                try? store.delete(service)
-            }
+            ServiceListView(
+                services: filteredServices,
+                onEdit: { editingService = $0 },
+                onDelete: { try? store.delete($0) },
+                onMove: { indices, offset in
+                    try? store.move(fromOffsets: indices, toOffset: offset)
+                }
+            )
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "搜索服务…")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingEditor = true
+                Menu {
+                    Button {
+                        showingEditor = true
+                    } label: {
+                        Label("空白服务", systemImage: "square.stack.3d.up")
+                    }
+                    Button {
+                        showingTemplates = true
+                    } label: {
+                        Label("从模板添加", systemImage: "books.vertical")
+                    }
                 } label: {
                     Label("添加服务", systemImage: "plus")
                 }
@@ -48,6 +61,11 @@ struct ContentView: View {
         .sheet(isPresented: $showingEditor) {
             EditServiceView(service: nil) { service in
                 try? store.add(service)
+            }
+        }
+        .sheet(isPresented: $showingTemplates) {
+            TemplatePickerView { template in
+                try? store.add(template.makeService())
             }
         }
         .sheet(item: $editingService) { service in
