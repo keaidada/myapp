@@ -48,7 +48,7 @@ struct ServiceRowView: View {
                 }
                 Button {
                     Task {
-                        let status = (try? await controller.status(service)) ?? .unknown
+                        let status = await controller.status(service)
                         viewModel.statuses[service.id] = status
                         if let cmd = service.statusCommand {
                             let result = (try? await controller.runStatus(service)) ?? CommandResult(exitCode: -1, stdout: "", stderr: "状态查询失败")

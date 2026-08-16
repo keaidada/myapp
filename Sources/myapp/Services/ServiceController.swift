@@ -62,8 +62,41 @@ struct ServiceController {
         return try await runner(cmd)
     }
 
-    func status(_ service: ManagedService) async throws -> ServiceStatus {
-        let result = try await runStatus(service)
-        return result.exitCode == 0 ? .healthy(latencyMs: 0) : .down(reason: "进程未运行")
+    /// 状态检测：按服务类型选择正确方式
+    /// - app：进程是否在运行 → running / stopped
+    /// - 有健康检查地址：网络检测 → healthy / down
+    /// - 有状态命令：exit 0 → running，否则 stopped
+    /// - 都没有：unknown（不误报离线）
+    func status(_ service: ManagedService) async -> ServiceStatus {
+        if service.kind == .app {
+            return appIsRunning(service) ? .running : .stopped
+        }
+        if let url = service.checkURL {
+            let resolved = Placeholder.substitute(url, values: service.variables)
+            return await HealthChecker.check(urlString: resolved)
+        }
+        if service.statusCommand != nil {
+            let result = (try? await runStatus(service))
+                ?? CommandResult(exitCode: -1, stdout: "", stderr: "状态查询失败")
+            return result.exitCode == 0 ? .running : .stopped
+        }
+        return .unknown
+    }
+
+    private func appIsRunning(_ service: ManagedService) -> Bool {
+        guard let path = service.appPath,
+              let bid = bundleIdentifier(for: path) else { return false }
+        return NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == bid && !$0.isTerminated
+        }
+    }
+
+    private func bundleIdentifier(for appPath: String) -> String? {
+        let plistPath = (appPath as NSString).appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: plistPath)),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+                as? [String: Any],
+              let bid = plist["CFBundleIdentifier"] as? String else { return nil }
+        return bid
     }
 }

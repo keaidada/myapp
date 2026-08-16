@@ -21,11 +21,32 @@ struct ServiceControllerTests {
         #expect(result.exitCode == 0)
     }
 
-    @Test func statusCommandHealthyWhenExitZero() async throws {
+    @Test func statusCommandHealthyWhenExitZero() async {
         let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "running", stderr: "") }
         let service = ManagedService(name: "Nginx", category: "Web", statusCommand: "pgrep nginx")
-        let status = try await controller.status(service)
+        let status = await controller.status(service)
         #expect(status.isHealthy)
+    }
+
+    @Test func statusCommandNonZeroIsStopped() async {
+        let controller = ServiceController { _ in CommandResult(exitCode: 1, stdout: "", stderr: "") }
+        let service = ManagedService(name: "Nginx", category: "Web", statusCommand: "pgrep nginx")
+        let status = await controller.status(service)
+        #expect(status == .stopped)
+    }
+
+    @Test func noDetectionConfigIsUnknown() async {
+        let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
+        let service = ManagedService(name: "X", category: "C", kind: .command, command: "echo hi")
+        let status = await controller.status(service)
+        #expect(status == .unknown)
+    }
+
+    @Test func checkURLDownIsDown() async {
+        let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
+        let service = ManagedService(name: "X", category: "C", kind: .command, command: "echo", checkURL: "http://127.0.0.1:1/")
+        let status = await controller.status(service)
+        if case .healthy = status { Issue.record("不可达端口不应健康") }
     }
 
     @Test func startPrefersStartCommand() async throws {
