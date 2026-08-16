@@ -452,6 +452,10 @@ struct ContentView: View {
         }
         .task {
             viewModel.commandLog = commandLog
+            viewModel.onFirstRefresh = { [weak viewModel] in
+                // 首次状态检测完成后刷新排序快照，让"运行在上"生效
+                refreshSortSnapshot()
+            }
             viewModel.start(store: store)
             refreshSortSnapshot()
         }

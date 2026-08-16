@@ -17,8 +17,12 @@ final class DashboardViewModel {
     private var lastDown: Set<UUID> = []
     private var restartAttempts: [UUID: Int] = [:]
     private var bundleIDCache: [String: String] = [:]
+    private var didFirstRefresh = false
     private let controller = ServiceController()
     private(set) var isMonitoring = false
+
+    /// 第一次轮询检测完成后的回调（用于初始化排序快照，让"运行在上"生效）
+    var onFirstRefresh: (() -> Void)?
 
     /// 启动定时轮询：健康检查 + 资源采样，统一每个 pollInterval 一轮
     func start(store: ServiceStore) {
@@ -53,6 +57,10 @@ final class DashboardViewModel {
             group.addTask {
                 await self.sampleResources(matching: services)
             }
+        }
+        if !didFirstRefresh {
+            didFirstRefresh = true
+            onFirstRefresh?()
         }
     }
 
