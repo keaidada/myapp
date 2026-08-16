@@ -3,6 +3,7 @@ import SwiftUI
 struct ServiceRowView: View {
     let service: ManagedService
     var onTagTap: ((String) -> Void)? = nil
+    var onEditTags: (() -> Void)? = nil
     @Environment(DashboardViewModel.self) private var viewModel
     @Environment(CommandLog.self) private var log
     @State private var controller = ServiceController()
@@ -82,6 +83,14 @@ struct ServiceRowView: View {
                     Label("状态", systemImage: "stethoscope")
                 }
                 .controlSize(.small)
+
+                Button {
+                    onEditTags?()
+                } label: {
+                    Label("标签", systemImage: "tag")
+                }
+                .controlSize(.small)
+                .help("管理该服务的标签")
 
                 Button {
                     isLaunching = true

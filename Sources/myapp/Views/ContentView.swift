@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var renameText = ""
     @State private var deleteTagTarget: String?
     @State private var showingTagManager = false
+    @State private var editingTagsService: ManagedService?
 
     enum SidebarFilter: Hashable {
         case all
@@ -143,6 +144,9 @@ struct ContentView: View {
                 onTagTap: { tag in
                     filter = .tag(tag)
                     searchText = ""
+                },
+                onEditTags: { service in
+                    editingTagsService = service
                 },
                 isSelectionMode: isSelectionMode,
                 selectedCount: selectedIDs.count,
@@ -286,6 +290,9 @@ struct ContentView: View {
             EditServiceView(service: service) { updated in
                 try? store.update(updated)
             }
+        }
+        .sheet(item: $editingTagsService) { service in
+            ServiceTagEditor(service: service)
         }
         .alert("重命名标签", isPresented: Binding(
             get: { renameTarget != nil },
