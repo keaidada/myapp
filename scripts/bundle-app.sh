@@ -12,12 +12,18 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp "$BIN/myapp" "$APP/Contents/MacOS/myapp"
 
+# 应用图标
+if [[ -f "assets/AppIcon.icns" ]]; then
+    cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+fi
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key><string>myapp</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleIdentifier</key><string>local.myapp</string>
     <key>CFBundleName</key><string>myapp</string>
     <key>CFBundleDisplayName</key><string>myapp</string>
