@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ServiceRowView: View {
     let service: ManagedService
+    var onTagTap: ((String) -> Void)? = nil
     @Environment(DashboardViewModel.self) private var viewModel
     @Environment(CommandLog.self) private var log
     @State private var controller = ServiceController()
@@ -35,6 +36,28 @@ struct ServiceRowView: View {
                 Text(statusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !service.tags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(service.tags.prefix(3), id: \.self) { tag in
+                            Button {
+                                onTagTap?(tag)
+                            } label: {
+                                Text(tag)
+                                    .font(.system(size: 10))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .help("点击查看「\(tag)」分类下的所有服务")
+                        }
+                        if service.tags.count > 3 {
+                            Text("+\(service.tags.count - 3)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
 
             Spacer()

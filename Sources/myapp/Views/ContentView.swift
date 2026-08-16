@@ -112,6 +112,13 @@ struct ContentView: View {
                         }
                         .tag(SidebarFilter.tag(tag))
                         .contextMenu {
+                            Button("启动该标签全部服务") {
+                                runTagBatch(.launch, tag: tag)
+                            }
+                            Button("停止该标签全部服务") {
+                                runTagBatch(.stop, tag: tag)
+                            }
+                            Divider()
                             Button("重命名…") {
                                 renameTarget = tag
                                 renameText = tag
@@ -132,6 +139,10 @@ struct ContentView: View {
                 onDelete: { try? store.delete($0) },
                 onMove: { indices, offset in
                     try? store.move(fromOffsets: indices, toOffset: offset)
+                },
+                onTagTap: { tag in
+                    filter = .tag(tag)
+                    searchText = ""
                 },
                 isSelectionMode: isSelectionMode,
                 selectedCount: selectedIDs.count,
@@ -405,6 +416,25 @@ struct ContentView: View {
                 batchSummary = await BatchOperations.stopAll(selectedServices)
             case .restart:
                 batchSummary = await BatchOperations.restartAll(selectedServices)
+            }
+        }
+    }
+
+    /// 对某个标签下的所有服务执行批量操作
+    private func runTagBatch(_ op: BatchOp, tag: String) {
+        guard !isBatchRunning else { return }
+        let targets = store.services.filter { $0.tags.contains(tag) }
+        guard !targets.isEmpty else { return }
+        isBatchRunning = true
+        Task {
+            defer { isBatchRunning = false }
+            switch op {
+            case .launch:
+                batchSummary = await BatchOperations.launchAll(targets)
+            case .stop:
+                batchSummary = await BatchOperations.stopAll(targets)
+            case .restart:
+                batchSummary = await BatchOperations.restartAll(targets)
             }
         }
     }

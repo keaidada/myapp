@@ -3,6 +3,7 @@ import SwiftUI
 struct ServiceDetailView: View {
     let service: ManagedService
     @Environment(DashboardViewModel.self) private var viewModel
+    @Environment(ServiceStore.self) private var store
 
     private var resource: ProcessSample? {
         viewModel.resources[service.id]
@@ -64,9 +65,28 @@ struct ServiceDetailView: View {
                 Section("标签") {
                     FlowLayout(spacing: 6) {
                         ForEach(service.tags, id: \.self) { tag in
-                            TagCapsule(text: tag)
+                            HStack(spacing: 4) {
+                                TagCapsule(text: tag)
+                                Button {
+                                    try? store.removeTag(tag, from: [service.id])
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("移除「\(tag)」标签")
+                            }
                         }
                     }
+                }
+            } else {
+                Section("标签") {
+                    Text("无标签")
+                        .foregroundStyle(.secondary)
+                    Text("编辑服务可添加标签")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

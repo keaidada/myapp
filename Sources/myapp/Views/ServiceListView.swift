@@ -6,6 +6,7 @@ struct ServiceListView: View {
     let onEdit: (ManagedService) -> Void
     let onDelete: (ManagedService) -> Void
     var onMove: ((IndexSet, Int) -> Void)? = nil
+    var onTagTap: ((String) -> Void)? = nil
     var isSelectionMode = false
     var selectedCount = 0
     var onLaunchSelected: (() -> Void)? = nil
@@ -23,7 +24,7 @@ struct ServiceListView: View {
                         selectableRow(service)
                     } else {
                         NavigationLink(value: service.id) {
-                            ServiceRowView(service: service)
+                            ServiceRowView(service: service, onTagTap: onTagTap)
                         }
                         .contextMenu {
                             Button("编辑…") { onEdit(service) }
