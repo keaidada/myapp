@@ -25,6 +25,13 @@ struct ContentView: View {
     @State private var deleteTagTarget: String?
     @State private var showingTagManager = false
     @State private var editingTagsService: ManagedService?
+    @State private var sortMode: SortMode = .smart
+
+    enum SortMode: String, CaseIterable, Identifiable {
+        case smart = "运行在上 + 字母序"
+        case manual = "手动拖拽排序"
+        var id: String { rawValue }
+    }
 
     enum SidebarFilter: Hashable {
         case all
@@ -59,7 +66,21 @@ struct ContentView: View {
                     || $0.category.localizedCaseInsensitiveContains(searchText)
                     || $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
             }
-            .sorted { ($0.sortOrder, $0.name) < ($1.sortOrder, $1.name) }
+    }
+
+    private var sortedServices: [ManagedService] {
+        switch sortMode {
+        case .smart:
+            // 运行中的排上面，同状态下按名称字母序
+            return filteredServices.sorted { a, b in
+                let aRun = viewModel.statuses[a.id]?.isHealthy ?? false
+                let bRun = viewModel.statuses[b.id]?.isHealthy ?? false
+                if aRun != bRun { return aRun }
+                return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+        case .manual:
+            return filteredServices.sorted { ($0.sortOrder, $0.name) < ($1.sortOrder, $1.name) }
+        }
     }
 
     private var selectedServices: [ManagedService] {
@@ -134,13 +155,13 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
             ServiceListView(
-                services: filteredServices,
+                services: sortedServices,
                 selection: $selectedIDs,
                 onEdit: { editingService = $0 },
                 onDelete: { try? store.delete($0) },
-                onMove: { indices, offset in
+                onMove: sortMode == .manual ? { indices, offset in
                     try? store.move(fromOffsets: indices, toOffset: offset)
-                },
+                } : nil,
                 onTagTap: { tag in
                     filter = .tag(tag)
                     searchText = ""
@@ -171,6 +192,13 @@ struct ContentView: View {
                     .help(isSelectionMode ? "退出多选模式" : "进入多选模式（点击行即可勾选）")
 
                     Menu {
+                        Picker("排序", selection: $sortMode) {
+                            ForEach(SortMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        Divider()
                         Button("全选") { selectAll() }
                         Button("反选") { invertSelection() }
                         Divider()
