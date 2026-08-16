@@ -8,6 +8,7 @@ struct ServiceRowView: View {
     @Environment(CommandLog.self) private var log
     @State private var controller = ServiceController()
     @State private var isLaunching = false
+    @State private var isOpening = false
     @State private var output: CommandResult?
     @State private var showOutput = false
 
@@ -91,6 +92,25 @@ struct ServiceRowView: View {
                 }
                 .controlSize(.small)
                 .help("管理该服务的标签")
+
+                // 打开界面：仅服务运行时可用
+                Button {
+                    isOpening = true
+                    Task {
+                        defer { isOpening = false }
+                        let result = (try? await controller.open(service))
+                            ?? CommandResult(exitCode: -1, stdout: "", stderr: "打开失败")
+                        if result.exitCode != 0 {
+                            output = result
+                            showOutput = true
+                        }
+                    }
+                } label: {
+                    Label("打开", systemImage: "safari")
+                }
+                .controlSize(.small)
+                .disabled(!status.isHealthy)
+                .help(status.isHealthy ? "打开界面（⌘O）" : "服务未运行，无法打开")
 
                 // 主按钮：运行中 → 关闭；未运行 → 启动
                 if status.isHealthy {

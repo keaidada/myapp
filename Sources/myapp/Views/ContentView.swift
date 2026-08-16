@@ -174,6 +174,10 @@ struct ContentView: View {
                         Button("全选") { selectAll() }
                         Button("反选") { invertSelection() }
                         Divider()
+                        Button("打开选中\(selectedCountSuffix)") { openSelected() }
+                            .keyboardShortcut("o", modifiers: .command)
+                            .disabled(selectedIDs.isEmpty)
+                        Divider()
                         Button("启动选中\(selectedCountSuffix)") { runSelected(.launch) }
                             .disabled(selectedIDs.isEmpty)
                         Button("停止选中\(selectedCountSuffix)") { runSelected(.stop) }
@@ -425,6 +429,18 @@ struct ContentView: View {
                 batchSummary = await BatchOperations.stopAll(selectedServices)
             case .restart:
                 batchSummary = await BatchOperations.restartAll(selectedServices)
+            }
+        }
+    }
+
+    /// ⌘O：打开选中的服务界面
+    private func openSelected() {
+        guard let service = selectedServices.first else { return }
+        Task {
+            let result = (try? await ServiceController().open(service))
+                ?? CommandResult(exitCode: -1, stdout: "", stderr: "打开失败")
+            if result.exitCode != 0 {
+                alertMessage = "打开失败：\(result.stderr)"
             }
         }
     }

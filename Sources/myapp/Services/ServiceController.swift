@@ -62,6 +62,22 @@ struct ServiceController {
         return try await runner(cmd)
     }
 
+    /// 打开服务的界面/网页（服务运行中时由调用方控制可用性）
+    func open(_ service: ManagedService) async throws -> CommandResult {
+        // 优先明确 URL，其次健康检查地址（通常是 Web UI）
+        if let urlString = service.url ?? service.checkURL {
+            let resolved = Placeholder.substitute(urlString, values: service.variables)
+            return try await runner("open \"\(resolved)\"")
+        }
+        // 应用类：运行中打开（聚焦）该应用
+        if service.kind == .app, let path = service.appPath {
+            let config = NSWorkspace.OpenConfiguration()
+            _ = try await NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: path), configuration: config)
+            return CommandResult(exitCode: 0, stdout: "已打开 \(service.name)", stderr: "")
+        }
+        return CommandResult(exitCode: -1, stdout: "", stderr: "没有可打开的地址（请配置 URL 或健康检查地址）")
+    }
+
     /// 关闭服务：应用→优雅退出进程；命令类→执行 stop 命令
     func quit(_ service: ManagedService) async -> CommandResult {
         if service.kind == .app {

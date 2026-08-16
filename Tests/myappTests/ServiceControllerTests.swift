@@ -60,6 +60,38 @@ struct ServiceControllerTests {
         #expect(ran == ["echo start"])
     }
 
+    @Test func openUsesCheckURL() async throws {
+        var ran: [String] = []
+        let controller = ServiceController { cmd in
+            ran.append(cmd)
+            return CommandResult(exitCode: 0, stdout: "", stderr: "")
+        }
+        let service = ManagedService(name: "FlowScope", category: "开发", kind: .command,
+                                     command: "start", checkURL: "http://127.0.0.1:3000")
+        let result = try await controller.open(service)
+        #expect(result.exitCode == 0)
+        #expect(ran.first?.contains("http://127.0.0.1:3000") == true)
+    }
+
+    @Test func openPrefersURLOverCheckURL() async throws {
+        var ran: [String] = []
+        let controller = ServiceController { cmd in
+            ran.append(cmd)
+            return CommandResult(exitCode: 0, stdout: "", stderr: "")
+        }
+        let service = ManagedService(name: "X", category: "C", kind: .url,
+                                     url: "http://example.com", checkURL: "http://check.com")
+        _ = try await controller.open(service)
+        #expect(ran.first?.contains("http://example.com") == true)
+    }
+
+    @Test func openWithoutURLFails() async {
+        let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
+        let service = ManagedService(name: "X", category: "C", kind: .command, command: "echo")
+        let result = (try? await controller.open(service)) ?? CommandResult(exitCode: -1, stdout: "", stderr: "")
+        #expect(result.exitCode != 0)
+    }
+
     @Test func quitCommandServiceUsesStopCommand() async {
         var ran: [String] = []
         let controller = ServiceController { cmd in
