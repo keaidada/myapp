@@ -82,6 +82,7 @@ struct EditServiceView: View {
                 TextField("网址（如 http://localhost:4000）", text: $url)
             case .command:
                 TextField("启动命令（如 brew services start redis）", text: $command)
+                TextField("界面地址（点「打开」用，如 http://localhost:3000/）", text: $url)
             }
 
             Section("监控与状态（可选）") {
@@ -227,7 +228,7 @@ struct EditServiceView: View {
             icon: icon.trimmingCharacters(in: .whitespaces).isEmpty ? "square.stack.3d.up" : icon,
             kind: kind,
             appPath: kind == .app ? appPath : nil,
-            url: kind == .url ? url : nil,
+            url: (kind == .url || kind == .command) ? (url.isEmpty ? nil : url) : nil,
             command: kind == .command ? command : nil,
             checkURL: checkURL.isEmpty ? nil : checkURL,
             statusCommand: statusCommand.isEmpty ? nil : statusCommand,
