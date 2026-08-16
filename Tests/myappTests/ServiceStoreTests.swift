@@ -131,14 +131,13 @@ struct ServiceStoreTests {
         try store.add(ManagedService(name: "A", category: "C"))
 
         let added = try store.addAll([
-            ManagedService(name: "A", category: "C"),  // 重复，跳过
+            ManagedService(name: "A", category: "C"),
             ManagedService(name: "B", category: "C"),
             ManagedService(name: "C", category: "C")
         ])
         #expect(added == 2)
         #expect(store.services.count == 3)
 
-        // 持久化验证
         let reloaded = ServiceStore(fileURL: fileURL)
         #expect(reloaded.services.count == 3)
     }
@@ -151,5 +150,40 @@ struct ServiceStoreTests {
         let added = try store.addAll([])
         #expect(added == 0)
         #expect(store.services.isEmpty)
+    }
+
+    @Test func deleteAllRemovesMultiple() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileURL = dir.appendingPathComponent("services.json")
+        let store = ServiceStore(fileURL: fileURL)
+
+        let a = ManagedService(name: "A", category: "C")
+        let b = ManagedService(name: "B", category: "C")
+        let c = ManagedService(name: "C", category: "C")
+        try store.add(a)
+        try store.add(b)
+        try store.add(c)
+
+        let removed = try store.deleteAll([a.id, c.id])
+        #expect(removed == 2)
+        #expect(store.services.map(\.name) == ["B"])
+
+        let reloaded = ServiceStore(fileURL: fileURL)
+        #expect(reloaded.services.map(\.name) == ["B"])
+    }
+
+    @Test func deleteAllUnknownIDsDoesNothing() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileURL = dir.appendingPathComponent("services.json")
+        let store = ServiceStore(fileURL: fileURL)
+        try store.add(ManagedService(name: "A", category: "C"))
+
+        let removed = try store.deleteAll([UUID()])
+        #expect(removed == 0)
+        #expect(store.services.count == 1)
     }
 }

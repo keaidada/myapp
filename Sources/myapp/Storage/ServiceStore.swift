@@ -61,6 +61,18 @@ final class ServiceStore {
         try save()
     }
 
+    /// 批量删除：一次写盘，返回删除数量
+    @discardableResult
+    func deleteAll(_ ids: Set<UUID>) throws -> Int {
+        let before = services.count
+        services.removeAll { ids.contains($0.id) }
+        let removed = before - services.count
+        if removed > 0 {
+            try save()
+        }
+        return removed
+    }
+
     /// 拖拽排序：移动后按新顺序重排 sortOrder
     func move(fromOffsets source: IndexSet, toOffset destination: Int) throws {
         services.move(fromOffsets: source, toOffset: destination)

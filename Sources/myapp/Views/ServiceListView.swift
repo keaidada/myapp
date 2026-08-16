@@ -2,14 +2,14 @@ import SwiftUI
 
 struct ServiceListView: View {
     let services: [ManagedService]
+    @Binding var selection: Set<ManagedService.ID>
     let onEdit: (ManagedService) -> Void
     let onDelete: (ManagedService) -> Void
     var onMove: ((IndexSet, Int) -> Void)? = nil
-    @State private var selectedID: ManagedService.ID?
 
     var body: some View {
         NavigationStack {
-            List(selection: $selectedID) {
+            List(selection: $selection) {
                 ForEach(services) { service in
                     NavigationLink(value: service.id) {
                         ServiceRowView(service: service)

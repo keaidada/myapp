@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var alertMessage: String?
     @State private var isBatchRunning = false
     @State private var batchSummary: BatchOperations.Summary?
+    @State private var selectedIDs: Set<ManagedService.ID> = []
+    @State private var showDeleteConfirm = false
 
     private var filteredServices: [ManagedService] {
         store.services
@@ -25,6 +27,14 @@ struct ContentView: View {
                     || $0.category.localizedCaseInsensitiveContains(searchText)
             }
             .sorted { ($0.sortOrder, $0.name) < ($1.sortOrder, $1.name) }
+    }
+
+    private var selectedServices: [ManagedService] {
+        store.services.filter { selectedIDs.contains($0.id) }
+    }
+
+    private var selectionLabel: String {
+        selectedIDs.isEmpty ? "批量操作" : "批量操作（\(selectedIDs.count)）"
     }
 
     var body: some View {
@@ -39,6 +49,7 @@ struct ContentView: View {
         } detail: {
             ServiceListView(
                 services: filteredServices,
+                selection: $selectedIDs,
                 onEdit: { editingService = $0 },
                 onDelete: { try? store.delete($0) },
                 onMove: { indices, offset in
@@ -51,6 +62,20 @@ struct ContentView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 if !store.services.isEmpty {
                     Menu {
+                        Button("全选") { selectAll() }
+                        Button("反选") { invertSelection() }
+                        Divider()
+                        Button("启动选中\(selectedCountSuffix)") { runSelected(.launch) }
+                            .disabled(selectedIDs.isEmpty)
+                        Button("停止选中\(selectedCountSuffix)") { runSelected(.stop) }
+                            .disabled(selectedIDs.isEmpty)
+                        Button("重启选中\(selectedCountSuffix)") { runSelected(.restart) }
+                            .disabled(selectedIDs.isEmpty)
+                        Button("删除选中\(selectedCountSuffix)", role: .destructive) {
+                            showDeleteConfirm = true
+                        }
+                        .disabled(selectedIDs.isEmpty)
+                        Divider()
                         Button("全部启动") { runBatch(.launch) }
                         Button("全部停止") { runBatch(.stop) }
                         Button("全部重启") { runBatch(.restart) }
@@ -58,7 +83,7 @@ struct ContentView: View {
                         if isBatchRunning {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label("批量操作", systemImage: "play.circle.stack")
+                            Label(selectionLabel, systemImage: "checklist")
                         }
                     }
                     .disabled(isBatchRunning)
@@ -135,6 +160,20 @@ struct ContentView: View {
                 try? store.update(updated)
             }
         }
+        .confirmationDialog(
+            "删除选中的 \(selectedIDs.count) 个服务？",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                let removed = (try? store.deleteAll(selectedIDs)) ?? 0
+                selectedIDs = []
+                if removed > 0 {
+                    alertMessage = "已删除 \(removed) 个服务"
+                }
+            }
+            Button("取消", role: .cancel) {}
+        }
         .fileExporter(
             isPresented: $exporting,
             document: ServicesDocument(data: (try? store.exportData()) ?? Data()),
@@ -187,8 +226,37 @@ struct ContentView: View {
         }
     }
 
+    private var selectedCountSuffix: String {
+        selectedIDs.isEmpty ? "" : "（\(selectedIDs.count)）"
+    }
+
     private enum BatchOp {
         case launch, stop, restart
+    }
+
+    private func selectAll() {
+        selectedIDs = Set(filteredServices.map(\.id))
+    }
+
+    private func invertSelection() {
+        let visible = Set(filteredServices.map(\.id))
+        selectedIDs = visible.subtracting(selectedIDs)
+    }
+
+    private func runSelected(_ op: BatchOp) {
+        guard !isBatchRunning, !selectedServices.isEmpty else { return }
+        isBatchRunning = true
+        Task {
+            defer { isBatchRunning = false }
+            switch op {
+            case .launch:
+                batchSummary = await BatchOperations.launchAll(selectedServices)
+            case .stop:
+                batchSummary = await BatchOperations.stopAll(selectedServices)
+            case .restart:
+                batchSummary = await BatchOperations.restartAll(selectedServices)
+            }
+        }
     }
 
     private func runBatch(_ op: BatchOp) {
