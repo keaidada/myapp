@@ -20,6 +20,9 @@ struct ContentView: View {
     @State private var selectedIDs: Set<ManagedService.ID> = []
     @State private var showDeleteConfirm = false
     @State private var isSelectionMode = false
+    @State private var renameTarget: String?
+    @State private var renameText = ""
+    @State private var deleteTagTarget: String?
 
     enum SidebarFilter: Hashable {
         case all
@@ -82,8 +85,21 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Text(tag)
+                            Spacer()
+                            Text("\(store.count(of: tag))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .tag(SidebarFilter.tag(tag))
+                        .contextMenu {
+                            Button("重命名…") {
+                                renameTarget = tag
+                                renameText = tag
+                            }
+                            Button("删除标签", role: .destructive) {
+                                deleteTagTarget = tag
+                            }
+                        }
                     }
                 }
             }
@@ -221,6 +237,9 @@ struct ContentView: View {
                 existingTags: store.allTags,
                 onApply: { tag in
                     try? store.addTag(tag, to: selectedIDs)
+                },
+                onRemove: { tag in
+                    try? store.removeTag(tag, from: selectedIDs)
                 }
             )
         }
@@ -228,6 +247,39 @@ struct ContentView: View {
             EditServiceView(service: service) { updated in
                 try? store.update(updated)
             }
+        }
+        .alert("重命名标签", isPresented: Binding(
+            get: { renameTarget != nil },
+            set: { if !$0 { renameTarget = nil } }
+        )) {
+            TextField("新名称", text: $renameText)
+            Button("确定") {
+                if let old = renameTarget {
+                    try? store.renameTag(old, to: renameText)
+                }
+                renameTarget = nil
+            }
+            Button("取消", role: .cancel) { renameTarget = nil }
+        } message: {
+            Text("所有使用该标签的服务都会同步更新")
+        }
+        .confirmationDialog(
+            "删除标签「\(deleteTagTarget ?? "")」？",
+            isPresented: Binding(
+                get: { deleteTagTarget != nil },
+                set: { if !$0 { deleteTagTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let tag = deleteTagTarget {
+                    try? store.deleteTag(tag)
+                }
+                deleteTagTarget = nil
+            }
+            Button("取消", role: .cancel) { deleteTagTarget = nil }
+        } message: {
+            Text("将从所有服务上移除该标签")
         }
         .confirmationDialog(
             "删除选中的 \(selectedIDs.count) 个服务？",

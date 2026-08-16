@@ -143,4 +143,35 @@ final class ServiceStore {
             try save()
         }
     }
+
+    /// 重命名标签：所有服务同步更新
+    func renameTag(_ oldName: String, to newName: String) throws {
+        let newName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !oldName.isEmpty, !newName.isEmpty, oldName != newName else { return }
+        var changed = false
+        for i in services.indices where services[i].tags.contains(oldName) {
+            services[i].tags = services[i].tags.map { $0 == oldName ? newName : $0 }
+            changed = true
+        }
+        if changed {
+            try save()
+        }
+    }
+
+    /// 删除标签：从所有服务移除
+    func deleteTag(_ tag: String) throws {
+        var changed = false
+        for i in services.indices where services[i].tags.contains(tag) {
+            services[i].tags.removeAll { $0 == tag }
+            changed = true
+        }
+        if changed {
+            try save()
+        }
+    }
+
+    /// 某标签下的服务数量
+    func count(of tag: String) -> Int {
+        services.reduce(0) { $0 + ($1.tags.contains(tag) ? 1 : 0) }
+    }
 }

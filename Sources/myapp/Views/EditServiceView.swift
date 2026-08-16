@@ -91,7 +91,30 @@ struct EditServiceView: View {
             }
 
             Section("标签") {
-                TextField("多个标签用逗号分隔", text: $tagsText, prompt: Text("例如：工作, 娱乐, 开发"))
+                TextField("输入标签，回车添加", text: $tagsText)
+                    .onSubmit { commitTagInput() }
+                if !parsedTags.isEmpty {
+                    FlowLayout(spacing: 6) {
+                        ForEach(parsedTags, id: \.self) { tag in
+                            HStack(spacing: 4) {
+                                Text(tag)
+                                Button {
+                                    removeTagFromInput(tag)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.accentColor.opacity(0.15), in: Capsule())
+                            .foregroundStyle(.tint)
+                        }
+                    }
+                }
             }
 
             Section("控制命令（可选）") {
@@ -153,6 +176,26 @@ struct EditServiceView: View {
             .frame(width: 300)
         }
         .padding(12)
+    }
+
+    private var parsedTags: [String] {
+        parseTags(tagsText)
+    }
+
+    /// 回车把当前输入追加为标签
+    private func commitTagInput() {
+        let trimmed = tagsText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        tagsText = trimmed + ", "
+    }
+
+    /// 从输入中移除某个标签
+    private func removeTagFromInput(_ tag: String) {
+        let parts = tagsText
+            .split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0 != tag }
+        tagsText = parts.joined(separator: ", ")
     }
 
     private func parseTags(_ text: String) -> [String] {

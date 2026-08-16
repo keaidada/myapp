@@ -32,11 +32,9 @@ struct ServiceTagTests {
         #expect(store.services[0].tags == ["工作"])
         #expect(store.services[1].tags.isEmpty)
 
-        // 重复添加不生效
         try store.addTag("工作", to: [a.id])
         #expect(store.services[0].tags == ["工作"])
 
-        // 持久化
         let reloaded = ServiceStore(fileURL: dir.appendingPathComponent("services.json"))
         #expect(reloaded.services[0].tags == ["工作"])
     }
@@ -57,6 +55,63 @@ struct ServiceTagTests {
         try store.add(a)
         try store.removeTag("工作", from: [a.id])
         #expect(store.services[0].tags == ["开发"])
+    }
+
+    @Test func renameTagUpdatesAllServices() throws {
+        let (store, _) = try tempStore()
+        var a = ManagedService(name: "A", category: "C")
+        a.tags = ["工作", "开发"]
+        var b = ManagedService(name: "B", category: "C")
+        b.tags = ["工作"]
+        try store.add(a)
+        try store.add(b)
+
+        try store.renameTag("工作", to: "职业")
+        #expect(store.services[0].tags == ["职业", "开发"])
+        #expect(store.services[1].tags == ["职业"])
+        #expect(!store.allTags.contains("工作"))
+        #expect(store.allTags.contains("职业"))
+    }
+
+    @Test func renameTagSameOrEmptyNoop() throws {
+        let (store, _) = try tempStore()
+        var a = ManagedService(name: "A", category: "C")
+        a.tags = ["工作"]
+        try store.add(a)
+        try store.renameTag("工作", to: "工作")
+        try store.renameTag("工作", to: "  ")
+        #expect(store.services[0].tags == ["工作"])
+    }
+
+    @Test func deleteTagRemovesEverywhere() throws {
+        let (store, dir) = try tempStore()
+        var a = ManagedService(name: "A", category: "C")
+        a.tags = ["工作", "开发"]
+        var b = ManagedService(name: "B", category: "C")
+        b.tags = ["工作"]
+        try store.add(a)
+        try store.add(b)
+
+        try store.deleteTag("工作")
+        #expect(store.services[0].tags == ["开发"])
+        #expect(store.services[1].tags.isEmpty)
+        #expect(!store.allTags.contains("工作"))
+
+        let reloaded = ServiceStore(fileURL: dir.appendingPathComponent("services.json"))
+        #expect(reloaded.services[1].tags.isEmpty)
+    }
+
+    @Test func countOfTag() throws {
+        let (store, _) = try tempStore()
+        var a = ManagedService(name: "A", category: "C")
+        a.tags = ["开发"]
+        var b = ManagedService(name: "B", category: "C")
+        b.tags = ["开发", "AI"]
+        try store.add(a)
+        try store.add(b)
+        #expect(store.count(of: "开发") == 2)
+        #expect(store.count(of: "AI") == 1)
+        #expect(store.count(of: "不存在") == 0)
     }
 
     @Test func tagsCodableRoundtrip() throws {
