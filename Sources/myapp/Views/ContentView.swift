@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var batchSummary: BatchOperations.Summary?
     @State private var selectedIDs: Set<ManagedService.ID> = []
     @State private var showDeleteConfirm = false
+    @State private var isSelectionMode = false
 
     enum SidebarFilter: Hashable {
         case all
@@ -95,6 +96,7 @@ struct ContentView: View {
                 onMove: { indices, offset in
                     try? store.move(fromOffsets: indices, toOffset: offset)
                 },
+                isSelectionMode: isSelectionMode,
                 selectedCount: selectedIDs.count,
                 onLaunchSelected: { runSelected(.launch) },
                 onStopSelected: { runSelected(.stop) },
@@ -108,6 +110,14 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 if !store.services.isEmpty {
+                    Button {
+                        isSelectionMode.toggle()
+                        if !isSelectionMode { selectedIDs = [] }
+                    } label: {
+                        Label(isSelectionMode ? "完成" : "选择", systemImage: "checkmark.circle")
+                    }
+                    .help(isSelectionMode ? "退出多选模式" : "进入多选模式（点击行即可勾选）")
+
                     Menu {
                         Button("全选") { selectAll() }
                         Button("反选") { invertSelection() }

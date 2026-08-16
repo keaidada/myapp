@@ -6,6 +6,7 @@ struct ServiceListView: View {
     let onEdit: (ManagedService) -> Void
     let onDelete: (ManagedService) -> Void
     var onMove: ((IndexSet, Int) -> Void)? = nil
+    var isSelectionMode = false
     var selectedCount = 0
     var onLaunchSelected: (() -> Void)? = nil
     var onStopSelected: (() -> Void)? = nil
@@ -18,12 +19,16 @@ struct ServiceListView: View {
         NavigationStack {
             List(selection: $selection) {
                 ForEach(services) { service in
-                    NavigationLink(value: service.id) {
-                        ServiceRowView(service: service)
-                    }
-                    .contextMenu {
-                        Button("编辑…") { onEdit(service) }
-                        Button("删除", role: .destructive) { onDelete(service) }
+                    if isSelectionMode {
+                        selectableRow(service)
+                    } else {
+                        NavigationLink(value: service.id) {
+                            ServiceRowView(service: service)
+                        }
+                        .contextMenu {
+                            Button("编辑…") { onEdit(service) }
+                            Button("删除", role: .destructive) { onDelete(service) }
+                        }
                     }
                 }
                 .onMove { indices, offset in
@@ -49,6 +54,29 @@ struct ServiceListView: View {
                     selectionBar
                 }
             }
+        }
+    }
+
+    /// 多选模式下的行：复选框 + 点击切换选中
+    private func selectableRow(_ service: ManagedService) -> some View {
+        let isSelected = selection.contains(service.id)
+        return HStack(spacing: 8) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+            ServiceRowView(service: service)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSelected {
+                selection.remove(service.id)
+            } else {
+                selection.insert(service.id)
+            }
+        }
+        .contextMenu {
+            Button("编辑…") { onEdit(service) }
+            Button("删除", role: .destructive) { onDelete(service) }
         }
     }
 

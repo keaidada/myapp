@@ -10,6 +10,8 @@ struct DiscoveryView: View {
     @State private var searchText = ""
     @State private var isLoadingBrew = false
     @State private var brewError: String?
+    @State private var isAddingApps = false
+    @State private var isAddingBrew = false
 
     enum DiscoveryTab: String, CaseIterable, Identifiable {
         case apps = "已安装应用"
@@ -77,18 +79,8 @@ struct DiscoveryView: View {
     // ── 已安装应用 ──
     private var appList: some View {
         VStack(spacing: 0) {
-            addAllBar(count: notAddedApps.count, label: "全部添加应用") {
-                let services = notAddedApps.map { app in
-                    ManagedService(
-                        name: app.name,
-                        category: "应用",
-                        icon: "app",
-                        kind: .app,
-                        appPath: app.path,
-                        appIconData: appIconData(for: app.path)
-                    )
-                }
-                try? store.addAll(services)
+            addAllBar(count: notAddedApps.count, label: isAddingApps ? "正在添加…" : "全部添加应用", isBusy: isAddingApps) {
+                addAllApps()
             }
             List(filteredApps) { app in
                 HStack(spacing: 12) {
@@ -138,8 +130,11 @@ struct DiscoveryView: View {
     // ── Homebrew 服务 ──
     private var brewList: some View {
         VStack(spacing: 0) {
-            addAllBar(count: notAddedBrew.count, label: "全部添加服务") {
+            addAllBar(count: notAddedBrew.count, label: isAddingBrew ? "正在添加…" : "全部添加服务", isBusy: isAddingBrew) {
+                guard !isAddingBrew else { return }
+                isAddingBrew = true
                 try? store.addAll(notAddedBrew.map { $0.makeService() })
+                isAddingBrew = false
             }
             Group {
                 if let brewError {
@@ -194,22 +189,62 @@ struct DiscoveryView: View {
     }
 
     // ── 顶部"全部添加"工具条 ──
-    private func addAllBar(count: Int, label: String, action: @escaping () -> Void) -> some View {
+    private func addAllBar(count: Int, label: String, isBusy: Bool = false, action: @escaping () -> Void) -> some View {
         HStack {
             Text(count > 0 ? "还有 \(count) 项未添加" : "已全部添加")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Spacer()
             Button(action: action) {
-                Label(label, systemImage: "plus.circle.fill")
+                if isBusy {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text(label)
+                    }
+                } else {
+                    Label(label, systemImage: "plus.circle.fill")
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(count == 0)
+            .disabled(count == 0 || isBusy)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    /// 异步批量添加全部应用：图标 PNG 编码放后台线程，避免主线程卡死
+    private func addAllApps() {
+        guard !isAddingApps, !notAddedApps.isEmpty else { return }
+        isAddingApps = true
+        let targets = notAddedApps
+        Task {
+            // 主线程取图标引用（系统缓存，很快）
+            let pairs = targets.map { (app: $0, image: NSWorkspace.shared.icon(forFile: $0.path)) }
+            // 后台线程做 PNG 编码（109 个应用的编码是卡顿根源）
+            let services = await Task.detached(priority: .userInitiated) {
+                pairs.map { pair in
+                    ManagedService(
+                        name: pair.app.name,
+                        category: "应用",
+                        icon: "app",
+                        kind: .app,
+                        appPath: pair.app.path,
+                        appIconData: Self.pngData(from: pair.image)
+                    )
+                }
+            }.value
+            try? store.addAll(services)
+            isAddingApps = false
+        }
+    }
+
+    private static func pngData(from image: NSImage) -> Data? {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        return png
     }
 
     // ── 辅助 ──
