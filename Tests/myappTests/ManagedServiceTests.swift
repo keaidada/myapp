@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import AppManager
+@testable import myapp
 
 struct ManagedServiceTests {
     @Test func codableRoundtrip() throws {

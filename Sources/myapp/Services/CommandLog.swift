@@ -32,7 +32,7 @@ final class CommandLog {
 
     static var defaultFileURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("AppManager", isDirectory: true)
+            .appendingPathComponent("myapp", isDirectory: true)
         return base.appendingPathComponent("history.json")
     }
 

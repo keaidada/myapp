@@ -1,5 +1,5 @@
 import Testing
-@testable import AppManager
+@testable import myapp
 
 struct CommandRunnerTests {
     @Test func runsEcho() async throws {

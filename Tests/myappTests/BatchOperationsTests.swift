@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import AppManager
+@testable import myapp
 
 struct BatchOperationsTests {
     private func fakeController(exitCode: Int32) -> ServiceController {

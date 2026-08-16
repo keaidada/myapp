@@ -1,5 +1,5 @@
 import Testing
-@testable import AppManager
+@testable import myapp
 
 struct ResourceMonitorTests {
     @Test func parsesSample() {

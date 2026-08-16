@@ -1,5 +1,5 @@
 import Testing
-@testable import AppManager
+@testable import myapp
 
 struct PlaceholderTests {
     @Test func substitutesVariables() {

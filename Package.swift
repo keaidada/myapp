@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "AppManager",
+    name: "myapp",
     platforms: [.macOS(.v14)],
     dependencies: [
         // CLT 的 swift-testing 安装不完整，从源码构建完整版
@@ -10,14 +10,14 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "AppManager",
-            path: "Sources/AppManager",
+            name: "myapp",
+            path: "Sources/myapp",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
-            name: "AppManagerTests",
-            dependencies: ["AppManager", .product(name: "Testing", package: "swift-testing")],
-            path: "Tests/AppManagerTests",
+            name: "myappTests",
+            dependencies: ["myapp", .product(name: "Testing", package: "swift-testing")],
+            path: "Tests/myappTests",
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

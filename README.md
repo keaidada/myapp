@@ -1,4 +1,4 @@
-# AppManager
+# myapp
 
 一个运行在 macOS 上的原生 SwiftUI 应用，统一管理本地 App、自建 Web 服务与自定义命令。
 
@@ -43,15 +43,15 @@ swift test         # 运行测试（47 个）
 
 ```bash
 ./scripts/bundle-app.sh
-open dist/AppManager.app
+open dist/myapp.app
 ```
 
 打包后（而非 swift run）运行时：菜单栏图标、系统通知才能完整工作。
 
 ## 数据存储
 
-- 服务清单：~/Library/Application Support/AppManager/services.json
-- 运行历史：~/Library/Application Support/AppManager/history.json
+- 服务清单：~/Library/Application Support/myapp/services.json
+- 运行历史：~/Library/Application Support/myapp/history.json
 
 备份 = 拷贝以上两个文件；也可在应用内"更多 → 导出配置"。
 

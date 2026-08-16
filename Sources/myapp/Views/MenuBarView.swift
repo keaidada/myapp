@@ -16,7 +16,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("AppManager")
+                Text("myapp")
                     .font(.headline)
                 Spacer()
                 Text("离线 \(viewModel.downCount)")

@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import AppManager
+@testable import myapp
 
 struct BrewDiscovererTests {
     @Test func parsesBrewServicesList() {

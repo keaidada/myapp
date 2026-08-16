@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
-# 用法: ./scripts/bundle-app.sh   —— 将 release 可执行文件打包成 AppManager.app
+# 用法: ./scripts/bundle-app.sh   —— 将 release 可执行文件打包成 myapp.app
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 swift build -c release
 BIN=$(swift build -c release --show-bin-path)
-APP="dist/AppManager.app"
+APP="dist/myapp.app"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp "$BIN/AppManager" "$APP/Contents/MacOS/AppManager"
+cp "$BIN/myapp" "$APP/Contents/MacOS/myapp"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleExecutable</key><string>AppManager</string>
-    <key>CFBundleIdentifier</key><string>local.appmanager</string>
-    <key>CFBundleName</key><string>AppManager</string>
-    <key>CFBundleDisplayName</key><string>AppManager</string>
+    <key>CFBundleExecutable</key><string>myapp</string>
+    <key>CFBundleIdentifier</key><string>local.myapp</string>
+    <key>CFBundleName</key><string>myapp</string>
+    <key>CFBundleDisplayName</key><string>myapp</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
