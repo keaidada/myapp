@@ -6,6 +6,13 @@ final class ServiceStore {
     private(set) var services: [ManagedService] = []
     let fileURL: URL
 
+    /// 预计算缓存：侧边栏每次 body 重算都重新排序/遍历会拖慢搜索
+    private var cacheDirty = true
+    private var cachedHot: [ManagedService] = []
+    private var cachedTagCounts: [String: Int] = [:]
+    private var cachedCategories: [String] = []
+    private var cachedAllTags: [String] = []
+
     static var defaultFileURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("myapp", isDirectory: true)
@@ -21,6 +28,44 @@ final class ServiceStore {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         let data = try Data(contentsOf: fileURL)
         services = try JSONDecoder().decode([ManagedService].self, from: data)
+        invalidateCache()
+    }
+
+    /// 任何数据修改后调用，下次读取时重建缓存
+    private func invalidateCache() {
+        cacheDirty = true
+    }
+
+    private func rebuildCacheIfNeeded() {
+        guard cacheDirty else { return }
+        cachedHot = services
+            .filter { $0.launchCount > 0 }
+            .sorted {
+                if $0.launchCount != $1.launchCount {
+                    return $0.launchCount > $1.launchCount
+                }
+                return ($0.lastLaunchedAt ?? .distantPast) > ($1.lastLaunchedAt ?? .distantPast)
+            }
+        var tagCounts: [String: Int] = [:]
+        var catSeen = Set<String>()
+        var catResult: [String] = []
+        var tagSeen = Set<String>()
+        var tagResult: [String] = []
+        for service in services {
+            if catSeen.insert(service.category).inserted {
+                catResult.append(service.category)
+            }
+            for tag in service.tags {
+                tagCounts[tag, default: 0] += 1
+                if tagSeen.insert(tag).inserted {
+                    tagResult.append(tag)
+                }
+            }
+        }
+        cachedTagCounts = tagCounts
+        cachedCategories = catResult.sorted()
+        cachedAllTags = tagResult.sorted()
+        cacheDirty = false
     }
 
     func save() throws {
@@ -36,6 +81,7 @@ final class ServiceStore {
 
     func add(_ service: ManagedService) throws {
         services.append(service)
+        invalidateCache()
         try save()
     }
 
@@ -46,6 +92,7 @@ final class ServiceStore {
         let toAdd = newServices.filter { !existing.contains($0.name) }
         guard !toAdd.isEmpty else { return 0 }
         services.append(contentsOf: toAdd)
+        invalidateCache()
         try save()
         return toAdd.count
     }
@@ -53,11 +100,13 @@ final class ServiceStore {
     func update(_ service: ManagedService) throws {
         guard let idx = services.firstIndex(where: { $0.id == service.id }) else { return }
         services[idx] = service
+        invalidateCache()
         try save()
     }
 
     func delete(_ service: ManagedService) throws {
         services.removeAll { $0.id == service.id }
+        invalidateCache()
         try save()
     }
 
@@ -68,6 +117,7 @@ final class ServiceStore {
         services.removeAll { ids.contains($0.id) }
         let removed = before - services.count
         if removed > 0 {
+            invalidateCache()
             try save()
         }
         return removed
@@ -79,6 +129,7 @@ final class ServiceStore {
         for (i, _) in services.enumerated() {
             services[i].sortOrder = i
         }
+        invalidateCache()
         try save()
     }
 
@@ -94,24 +145,26 @@ final class ServiceStore {
         let data = try Data(contentsOf: url)
         let decoded = try JSONDecoder().decode([ManagedService].self, from: data)
         services = decoded
+        invalidateCache()
         try save()
     }
 
     /// 从 JSON 数据导入（供测试与合并使用）
     func importData(_ data: Data) throws {
         services = try JSONDecoder().decode([ManagedService].self, from: data)
+        invalidateCache()
         try save()
     }
 
     var categories: [String] {
-        var seen = Set<String>()
-        return services.map(\.category).filter { seen.insert($0).inserted }.sorted()
+        rebuildCacheIfNeeded()
+        return cachedCategories
     }
 
     /// 所有标签（去重排序）
     var allTags: [String] {
-        var seen = Set<String>()
-        return services.flatMap(\.tags).filter { seen.insert($0).inserted }.sorted()
+        rebuildCacheIfNeeded()
+        return cachedAllTags
     }
 
     /// 给一组服务批量添加标签（去重、一次写盘）
@@ -126,6 +179,7 @@ final class ServiceStore {
             }
         }
         if changed {
+            invalidateCache()
             try save()
         }
     }
@@ -154,6 +208,7 @@ final class ServiceStore {
             changed = true
         }
         if changed {
+            invalidateCache()
             try save()
         }
     }
@@ -166,13 +221,15 @@ final class ServiceStore {
             changed = true
         }
         if changed {
+            invalidateCache()
             try save()
         }
     }
 
     /// 某标签下的服务数量
     func count(of tag: String) -> Int {
-        services.reduce(0) { $0 + ($1.tags.contains(tag) ? 1 : 0) }
+        rebuildCacheIfNeeded()
+        return cachedTagCounts[tag] ?? 0
     }
 
     /// 记录一次启动：次数 +1、更新最近启动时间并写盘
@@ -180,20 +237,13 @@ final class ServiceStore {
         guard let idx = services.firstIndex(where: { $0.id == id }) else { return }
         services[idx].launchCount += 1
         services[idx].lastLaunchedAt = Date()
+        invalidateCache()
         try? save()
     }
 
-    /// 最近热度 Top N：按启动次数降序，次数相同按最近启动时间新在前
+    /// 最近热度 Top N：按启动次数降序，次数相同按最近启动时间新在前（结果缓存）
     func hotServices(limit: Int = 10) -> [ManagedService] {
-        services
-            .filter { $0.launchCount > 0 }
-            .sorted {
-                if $0.launchCount != $1.launchCount {
-                    return $0.launchCount > $1.launchCount
-                }
-                return ($0.lastLaunchedAt ?? .distantPast) > ($1.lastLaunchedAt ?? .distantPast)
-            }
-            .prefix(limit)
-            .map { $0 }
+        rebuildCacheIfNeeded()
+        return Array(cachedHot.prefix(limit))
     }
 }
