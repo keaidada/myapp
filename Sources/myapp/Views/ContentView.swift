@@ -115,31 +115,21 @@ struct ContentView: View {
         return false
     }
 
-    /// 最近热度 Top10 侧边栏区块
+    /// 最近热度 Top10 侧边栏入口（明细在右侧主列表展示）
     private var hotSection: some View {
         Section("最近热度") {
-            if store.hotServices(limit: 10).isEmpty {
-                Text("还没有使用记录")
+            HStack(spacing: 6) {
+                Image(systemName: "flame.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Text("Top 10")
+                Spacer()
+                Text("\(store.hotServices(limit: 10).count) 个")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .help("启动服务后会自动累计热度")
-            } else {
-                ForEach(store.hotServices(limit: 10)) { service in
-                    HStack(spacing: 6) {
-                        Image(systemName: "flame.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                        Text(service.name)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(service.launchCount)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    .tag(SidebarFilter.hot)
-                    .help("点击查看最近热度 Top10")
-                }
             }
+            .tag(SidebarFilter.hot)
+            .help("点击查看启动次数最多的 10 个服务")
         }
     }
 
