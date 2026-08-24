@@ -9,36 +9,43 @@ struct InstalledApp: Identifiable, Hashable {
 }
 
 enum AppScanner {
-    /// 默认扫描目录（可注入便于测试）
-    static let defaultSearchDirs = [
-        "/Applications",
-        NSHomeDirectory() + "/Applications",
-        "/System/Applications",
-        "/Library/Input Methods",   // 输入法（搜狗/百度等）
-        NSHomeDirectory() + "/Library/Input Methods",
-        NSHomeDirectory() + "/Downloads"   // Sublime Text 等多从 Downloads 运行
-    ]
-
-    /// 递归扫描目录中所有 .app。默认扫一层；对 /Applications 等可往下一层（涵盖 iOA.app 这类嵌套）
-    static func scan(dirs: [String] = defaultSearchDirs) -> [InstalledApp] {
+    /// 通过 LaunchServices 查询所有已注册应用（用 mdfind / Spotlight 的应用注册数据库），
+    /// 返回完整 .app 路径。比物理遍历目录更全面 —— 能发现嵌套目录、~/Downloads、
+    /// 以及不在标准 Applications 目录里的应用（如 Sublime Text、iOA）。
+    /// @param query 注入查询命令便于测试；默认为 mdfind 应用查询
+    static func scan(query: String = "kMDItemContentType == 'com.apple.application-bundle'") -> [InstalledApp] {
+        guard let output = runMDFind(query) else { return [] }
         var result: [InstalledApp] = []
         var seen = Set<String>()
-        for dir in dirs {
-            scan(dir, dirs: dirs, result: &result, seen: &seen)
+        for line in output {
+            let path = line.trimmingCharacters(in: .whitespaces)
+            guard path.hasSuffix(".app"), FileManager.default.fileExists(atPath: path) else { continue }
+            let name = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+            let normalizedPath = path.replacingOccurrences(of: "\u{200e}", with: "") // 去掉不可见字符
+            if !seen.insert(name).inserted { continue } // 同名去重
+            result.append(InstalledApp(name: name, path: normalizedPath, aliases: displayNames(for: normalizedPath)))
         }
         return result.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
 
-    private static func scan(_ dir: String, dirs: [String], result: inout [InstalledApp], seen: inout Set<String>) {
-        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return }
-        for entry in entries {
-            guard entry.hasSuffix(".app") else { continue }
-            let fullPath = (dir as NSString).appendingPathComponent(entry)
-            let name = (entry as NSString).deletingPathExtension
-            if !seen.insert(name).inserted { continue } // 同名去重
-            result.append(InstalledApp(name: name, path: fullPath, aliases: displayNames(for: fullPath)))
+    /// 执行 mdfind 查询，返回路径行（失败返回 nil）
+    static func runMDFind(_ query: String) -> [String]? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+        process.arguments = [query]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)?
+                .split(separator: "\n")
+                .map(String.init)
+        } catch {
+            return nil
         }
     }
 
