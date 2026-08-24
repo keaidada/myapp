@@ -13,7 +13,9 @@ enum AppScanner {
     static let defaultSearchDirs = [
         "/Applications",
         NSHomeDirectory() + "/Applications",
-        "/System/Applications"
+        "/System/Applications",
+        "/Library/Input Methods",   // 输入法（搜狗/百度等）
+        NSHomeDirectory() + "/Library/Input Methods"
     ]
 
     static func scan(dirs: [String] = defaultSearchDirs) -> [InstalledApp] {
