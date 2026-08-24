@@ -16,6 +16,7 @@ struct ServiceListView: View {
     var onDeleteSelected: (() -> Void)? = nil
     var onAddTagSelected: (() -> Void)? = nil
     var onClearSelection: (() -> Void)? = nil
+    @State private var detailServiceID: ManagedService.ID?
 
     var body: some View {
         NavigationStack {
@@ -24,21 +25,22 @@ struct ServiceListView: View {
                     if isSelectionMode {
                         selectableRow(service)
                     } else {
-                        NavigationLink(value: service.id) {
-                            ServiceRowView(service: service, onTagTap: onTagTap, onEditTags: { onEditTags?(service) })
-                        }
-                        .contextMenu {
-                            Button("标签…") { onEditTags?(service) }
-                            Button("编辑…") { onEdit(service) }
-                            Button("删除", role: .destructive) { onDelete(service) }
-                        }
+                        ServiceRowView(service: service, onTagTap: onTagTap, onEditTags: { onEditTags?(service) })
+                            .contentShape(Rectangle())
+                            // 行点击进详情；行内子按钮（标签/状态/打开等）手势优先，不受影响
+                            .onTapGesture { detailServiceID = service.id }
+                            .contextMenu {
+                                Button("标签…") { onEditTags?(service) }
+                                Button("编辑…") { onEdit(service) }
+                                Button("删除", role: .destructive) { onDelete(service) }
+                            }
                     }
                 }
                 .onMove { indices, offset in
                     onMove?(indices, offset)
                 }
             }
-            .navigationDestination(for: ManagedService.ID.self) { id in
+            .navigationDestination(item: $detailServiceID) { id in
                 if let service = services.first(where: { $0.id == id }) {
                     ServiceDetailView(service: service)
                 }
