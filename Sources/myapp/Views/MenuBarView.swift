@@ -122,7 +122,7 @@ struct MenuBarIcon: View {
     @Environment(DashboardViewModel.self) private var viewModel
 
     var body: some View {
-        Image(systemName: viewModel.hasDownService ? "exclamationmark.triangle.fill" : "square.stack.3d.up")
+        Image(systemName: viewModel.hasDownService ? "exclamationmark.triangle.fill" : "circle.grid.3x3.fill")
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(viewModel.hasDownService ? Color.red : Color.primary)
     }
