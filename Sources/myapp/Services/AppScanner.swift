@@ -15,23 +15,30 @@ enum AppScanner {
         NSHomeDirectory() + "/Applications",
         "/System/Applications",
         "/Library/Input Methods",   // 输入法（搜狗/百度等）
-        NSHomeDirectory() + "/Library/Input Methods"
+        NSHomeDirectory() + "/Library/Input Methods",
+        NSHomeDirectory() + "/Downloads"   // Sublime Text 等多从 Downloads 运行
     ]
 
+    /// 递归扫描目录中所有 .app。默认扫一层；对 /Applications 等可往下一层（涵盖 iOA.app 这类嵌套）
     static func scan(dirs: [String] = defaultSearchDirs) -> [InstalledApp] {
         var result: [InstalledApp] = []
         var seen = Set<String>()
         for dir in dirs {
-            guard let entries = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
-            for entry in entries where entry.hasSuffix(".app") {
-                let fullPath = (dir as NSString).appendingPathComponent(entry)
-                let name = (entry as NSString).deletingPathExtension
-                guard seen.insert(name).inserted else { continue } // 同名去重
-                result.append(InstalledApp(name: name, path: fullPath, aliases: displayNames(for: fullPath)))
-            }
+            scan(dir, dirs: dirs, result: &result, seen: &seen)
         }
         return result.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private static func scan(_ dir: String, dirs: [String], result: inout [InstalledApp], seen: inout Set<String>) {
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return }
+        for entry in entries {
+            guard entry.hasSuffix(".app") else { continue }
+            let fullPath = (dir as NSString).appendingPathComponent(entry)
+            let name = (entry as NSString).deletingPathExtension
+            if !seen.insert(name).inserted { continue } // 同名去重
+            result.append(InstalledApp(name: name, path: fullPath, aliases: displayNames(for: fullPath)))
         }
     }
 
