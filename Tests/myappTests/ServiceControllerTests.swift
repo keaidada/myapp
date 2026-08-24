@@ -121,4 +121,30 @@ struct ServiceControllerTests {
             // 预期行为
         }
     }
+
+    @Test func pkillCommandMatchesAppPath() {
+        let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
+        let cmd = controller.pkillCommand(appPath: "/Applications/Ollama.app", signal: "TERM")
+        #expect(cmd == "pkill -TERM -f '/Applications/Ollama.app/Contents/MacOS/'")
+    }
+
+    @Test func pkillCommandEscapesQuoteInPath() {
+        let controller = ServiceController { _ in CommandResult(exitCode: 0, stdout: "", stderr: "") }
+        let cmd = controller.pkillCommand(appPath: "/tmp/a'b.app", signal: "KILL")
+        #expect(cmd == "pkill -KILL -f '/tmp/a'\\''b.app/Contents/MacOS/'")
+    }
+
+    @Test func quitAppNotRunningIsIdempotentSuccess() async {
+        // Chess.app 几乎不可能在运行：不应执行任何命令，直接视为已关闭
+        var ran: [String] = []
+        let controller = ServiceController { cmd in
+            ran.append(cmd)
+            return CommandResult(exitCode: 0, stdout: "", stderr: "")
+        }
+        let service = ManagedService(name: "Chess", category: "C", kind: .app,
+                                     appPath: "/System/Applications/Chess.app")
+        let result = await controller.quit(service)
+        #expect(result.exitCode == 0)
+        #expect(ran.isEmpty)
+    }
 }

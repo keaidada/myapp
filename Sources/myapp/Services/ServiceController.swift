@@ -78,30 +78,78 @@ struct ServiceController {
         return CommandResult(exitCode: -1, stdout: "", stderr: "没有可打开的地址（请配置 URL 或健康检查地址）")
     }
 
-    /// 关闭服务：应用→优雅退出进程；命令类→执行 stop 命令
+    /// 关闭服务：应用→优雅退出，Electron 等不响应退出事件时逐步升级到 TERM/KILL；
+    /// 命令类→执行 stop 命令
     func quit(_ service: ManagedService) async -> CommandResult {
         if service.kind == .app {
-            guard let path = service.appPath,
+            guard let path = service.appPath, !path.isEmpty,
                   let bid = bundleIdentifier(for: path) else {
                 return CommandResult(exitCode: 1, stdout: "", stderr: "无法识别应用")
             }
-            guard let app = NSWorkspace.shared.runningApplications.first(where: {
-                $0.bundleIdentifier == bid && !$0.isTerminated
-            }) else {
-                return CommandResult(exitCode: 1, stdout: "", stderr: "应用未在运行")
-            }
-            let ok = app.terminate()
-            return CommandResult(
-                exitCode: ok ? 0 : 1,
-                stdout: ok ? "已发送关闭请求" : "关闭失败",
-                stderr: ""
-            )
+            return await quitApp(appPath: path, bundleID: bid)
         }
         if let stop = service.stopCommand, !stop.isEmpty {
             return (try? await runner(stop))
                 ?? CommandResult(exitCode: -1, stdout: "", stderr: "关闭命令执行失败")
         }
         return CommandResult(exitCode: -1, stdout: "", stderr: "未配置关闭命令")
+    }
+
+    /// 应用类关闭：terminate → 等待 → SIGTERM（按 PID 与路径）→ 等待 → SIGKILL
+    /// 解决 Ollama 等 Electron 菜单栏应用拦截 terminate 退出的问题
+    private func quitApp(appPath: String, bundleID: String, gracefulWait: Double = 1.5, killWait: Double = 1.0) async -> CommandResult {
+        let running = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == bundleID && !$0.isTerminated
+        })
+        let pid = running?.processIdentifier
+
+        // 第 1 步：优雅退出
+        if let app = running {
+            _ = app.terminate()
+        }
+        if await waitForExit(bundleID: bundleID, timeout: gracefulWait) {
+            return CommandResult(exitCode: 0, stdout: "已关闭", stderr: "")
+        }
+
+        // 第 2 步：SIGTERM —— 对 Electron 应用有效
+        if let pid {
+            _ = try? await runner("kill -TERM \(pid)")
+        }
+        _ = try? await runner(pkillCommand(appPath: appPath, signal: "TERM"))
+        if await waitForExit(bundleID: bundleID, timeout: killWait) {
+            return CommandResult(exitCode: 0, stdout: "已强制关闭", stderr: "")
+        }
+
+        // 第 3 步：SIGKILL 兜底
+        _ = try? await runner(pkillCommand(appPath: appPath, signal: "KILL"))
+        let ok = await waitForExit(bundleID: bundleID, timeout: 0.5)
+        return CommandResult(
+            exitCode: ok ? 0 : 1,
+            stdout: ok ? "已强制关闭" : "关闭失败",
+            stderr: ok ? "" : "进程未响应终止请求"
+        )
+    }
+
+    /// 生成按应用路径匹配主进程的 pkill 命令（提取为内部函数便于测试）
+    func pkillCommand(appPath: String, signal: String) -> String {
+        let escaped = appPath.replacingOccurrences(of: "'", with: "'\\''")
+        return "pkill -\(signal) -f '\(escaped)/Contents/MacOS/'"
+    }
+
+    /// 轮询等待应用退出（bundle id 不再出现在运行列表）
+    private func waitForExit(bundleID: String, timeout: Double) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !NSWorkspace.shared.runningApplications.contains(where: {
+                $0.bundleIdentifier == bundleID && !$0.isTerminated
+            }) {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        return !NSWorkspace.shared.runningApplications.contains(where: {
+            $0.bundleIdentifier == bundleID && !$0.isTerminated
+        })
     }
 
     /// 状态检测：按服务类型选择正确方式
