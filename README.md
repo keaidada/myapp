@@ -1,59 +1,77 @@
-# myapp
+# myapp 🦫
 
-一个运行在 macOS 上的原生 SwiftUI 应用，统一管理本地 App、自建 Web 服务与自定义命令。
+一款原生 SwiftUI 编写的 macOS 应用管理器：统一管理本机应用、本地 Web 服务与自定义命令，支持一键启动、状态监控、标签分类与最近热度统计。
 
-## 核心亮点
+> 水豚图标，随开随用。所有数据保存在本地 `~/Library/Application Support/myapp/`，无需联网。
 
-### 免配置添加
-**添加服务 → 从系统发现…**，自动扫描并列出你 Mac 上的内容，点一下就添加好，命令自动帮你填：
-- **已安装应用**：自动扫描 /Applications、~/Applications、/System/Applications，显示真实图标，一键"全部添加"
-- **Homebrew 服务**：自动读取 brew services list，显示运行状态，一键添加（启停/状态命令自动填好）
+## ✨ 功能
 
-### 智能状态显示
-- **应用**：自动检测进程是否在运行 → 运行中 🟢 / 未运行 ⚪（无需配置）
-- **Web 服务**：健康检查地址（支持 {key} 变量）→ 正常/离线 + 延迟
-- **命令服务**：状态命令（exit 0 = 运行中）
+- **三种服务类型**：应用（`.app`）、URL 服务、自定义命令（Command）
+- **免配置添加**：从系统发现一键扫描本机应用（真实图标）与 Homebrew 服务（启停/状态命令自动填好）
+- **一键启动 / 关闭**：应用类优雅退出（Electron 应用自动 TERM/KILL 兜底）、命令类执行启停脚本
+- **状态监控**：进程检测 / 健康检查 URL / 状态命令，全局轮询，菜单栏实时汇总（离线变红警示）
+- **标签系统**：标签增删改查、批量打标、点击标签过滤、标签级批量启停
+- **最近热度 Top10**：自动记录启动次数与最近启动时间，侧边栏查看高频服务
+- **搜索别名**：扫描应用时自动提取 `CFBundleName` / `CFBundleDisplayName`，支持中文名搜索（如 TencentMeeting → 腾讯会议）
+- **预置模板库**：20+ 常用模板（Web 开发、数据库、AI 等）一键添加
+- **批量操作**：多选模式批量启动 / 停止 / 重启 / 打标签
+- **自定义命令模板**：变量占位符替换，灵活编排
+- **运行历史**：记录每次命令执行结果，可回看输出
+- **全局快速启动**：`Cmd + Shift + M` 呼出快速启动面板
+- **导出 / 导入**：配置 JSON 备份与迁移
+- **菜单栏常驻**：离线服务提醒、一键启动
 
-### 标签分类整理
-- 每个服务可打多个标签，编辑表单里逗号分隔输入
-- **批量打标签**：多选服务 → 底部操作栏"标签"→ 输入或点已有标签，一次给 N 个服务打上
-- **按标签整理**：侧边栏"标签"区列出所有标签，点击即过滤；"未打标签"查看待整理项
-
-### 其他功能
-- 一键启动 / 服务控制（启停/重启/状态）/ 批量操作（全选/反选/选中批量）
-- 预置模板库（20+ 常用模板）/ 自定义命令模板 / 图标选择器 / 拖拽排序
-- 资源查看（CPU/内存）/ 菜单栏常驻（离线变红警示）/ 导出导入配置 / 运行历史
-
-## 开发环境要求
-
-- macOS 14+（开发机为 Apple Silicon，路径含 /opt/homebrew）
-- Swift 6.x（Command Line Tools 即可，**无需 Xcode**）
-
-## 运行
+## 🚀 使用
 
 ```bash
 swift run          # 调试运行
-swift test         # 运行测试（56 个）
+swift test         # 运行测试（95 个）
 ```
 
-> 首次运行会从 GitHub 拉取 swift-testing 源码构建（CLT 自带的 Testing 框架不完整）。
+> 首次构建会从 GitHub 拉取 swift-testing 源码（CLT 自带的 Testing 框架不完整）。
 
-## 打包成 .app
+## 📦 打包成 .app
 
 ```bash
-./scripts/bundle-app.sh
+./scripts/bundle-app.sh   # 含图标与 ad-hoc 签名，输出到 dist/myapp.app
 open dist/myapp.app
 ```
 
-打包后（而非 swift run）运行时：菜单栏图标、系统通知才能完整工作。
+打包后（而非 swift run）运行时，菜单栏图标、系统通知才能完整工作。
 
-## 数据存储
+## 📁 数据存储
 
-- 服务清单：~/Library/Application Support/myapp/services.json
-- 运行历史：~/Library/Application Support/myapp/history.json
+| 文件 | 内容 |
+| --- | --- |
+| `services.json` | 服务清单（含标签、热度、别名等） |
+| `history.json` | 命令运行历史 |
 
-## 使用建议
+路径：`~/Library/Application Support/myapp/`
+
+## 🧩 项目结构
+
+```
+Sources/myapp/
+├── Models/        # 数据模型（服务、状态、类型）
+├── Storage/       # 持久化（ServiceStore）
+├── Services/      # 核心逻辑（启动/状态/扫描/模板/排序…）
+├── Views/         # SwiftUI 界面
+└── QuickLaunch/   # 全局快速启动面板
+Tests/myappTests/  # 单元测试（swift-testing）
+scripts/           # 打包与图标生成脚本
+assets/            # 应用图标
+```
+
+## 🧪 测试
+
+95 个单元测试覆盖：容错解码、存储持久化、命令执行、状态检测、健康检查、资源监控、标签、模板、热度排序、快速启动匹配、搜索别名等。
+
+## 💡 使用建议
 
 - 给应用打标签的例子：工作、娱乐、开发、设计、系统
 - 批量操作适合：多选一批应用打同个标签；一键启动/关闭一组服务
-- 前台型长驻命令（如 node server.js）会被 30 秒超时终止，请自行守护化
+- 前台型长驻命令（如 `node server.js`）会被 30 秒超时终止，请自行守护化
+
+## 📄 License
+
+MIT
