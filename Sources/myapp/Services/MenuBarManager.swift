@@ -9,8 +9,10 @@ struct MenuBarItemInfo: Identifiable {
     let ownerName: String?
     let title: String?
     let layer: Int
+    /// 同一应用的所有菜单栏窗口ID（隐藏时全部处理，兼容微信多容器）
+    var relatedWindowIDs: [CGWindowID] = []
 
-    var id: String { "\(windowID)" }
+    var id: String { "\(appName)" }
 }
 
 /// 菜单栏图标纳管：枚举当前菜单栏的图标项（CGWindow 层），控制显示/隐藏。
@@ -20,15 +22,19 @@ struct MenuBarItemInfo: Identifiable {
 enum MenuBarManager {
     // MARK: - 权限
 
-    /// 是否已获得辅助功能授权
+    /// 是否已获得辅助功能授权（缓存，避免反复查询 + 写日志）
+    private static var cachedTrusted: Bool?
     static var isTrusted: Bool {
+        if let cached = cachedTrusted { return cached }
         let trusted = AXIsProcessTrusted()
-        debugLog("isTrusted 查询 -> \(trusted) (进程: \(ProcessInfo.processInfo.processIdentifier), bundle: \(Bundle.main.bundleIdentifier ?? "?"))")
+        cachedTrusted = trusted
+        debugLog("isTrusted -> \(trusted)")
         return trusted
     }
 
     /// 弹出系统授权提示（若未授权），并打开系统设置面板
     static func requestAccessibilityPermission() {
+        cachedTrusted = nil
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
@@ -38,34 +44,54 @@ enum MenuBarManager {
 
     // MARK: - 枚举（CGWindow 层）
 
-    /// 枚举当前菜单栏的图标项。用 CGWindowListCopyWindowInfo(.optionMenuBarItems) 遍历，
-    /// 每一个菜单栏图标是一个独立的 CGWindow。
+    /// 枚举当前菜单栏的图标项：遍历所有窗口，筛选位于菜单栏区域（顶部、高约 33）的。
+    /// 每个应用记一个代表窗口ID + 该应用的所有菜单栏窗口ID（隐藏时全部处理）。
     static func menuBarItems() -> [MenuBarItemInfo] {
         debugLog("menuBarItems() 调用, isTrusted=\(isTrusted)")
         var result: [MenuBarItemInfo] = []
 
-        // kCGWindowListOptionMenuBarItems = 0x01, kCGWindowListOptionOnScreenOnly = 0x02
-        let option = CGWindowListOption(rawValue: 0x01 | 0x02)
-        let windowList = CGWindowListCopyWindowInfo(option, kCGNullWindowID)
+        let allWindows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID)
             as? [[String: Any]] ?? []
 
-        debugLog("CGWindowList 返回 \(windowList.count) 个菜单栏窗口")
-        for window in windowList {
+        // 按 owner 聚合：owner -> 所有位于菜单栏的窗口ID
+        var ownerWindowIDs: [String: [CGWindowID]] = [:]
+        var ownerFirst: [String: MenuBarItemInfo] = [:]
+        var ownerMeta: [String: (pid: pid_t, name: String)] = [:]
+
+        for window in allWindows {
+            let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
+            guard let y = bounds["Y"] as? Double, let height = bounds["Height"] as? Double else { continue }
+            guard y >= -1 && y < 40, height > 10 && height < 45 else { continue }
+
+            let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            guard layer == 0 else { continue } // 应用菜单栏图标在 layer 0
+
             let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value ?? 0
             let ownerPid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value ?? 0
-            let ownerName = window[kCGWindowOwnerName as String] as? String
-            let appName = owningAppName(pid: ownerPid, ownerName: ownerName)
-            let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
-            let title = window[kCGWindowName as String] as? String
-            result.append(MenuBarItemInfo(
-                windowID: windowID,
-                appName: appName,
-                ownerName: ownerName,
-                title: title,
-                layer: layer
-            ))
+            let ownerName = window[kCGWindowOwnerName as String] as? String ?? "?"
+            let pidKey = "\(ownerPid)"
+
+            ownerWindowIDs[pidKey, default: []].append(windowID)
+            if ownerMeta[pidKey] == nil {
+                let appName = owningAppName(pid: ownerPid, ownerName: ownerName)
+                ownerMeta[pidKey] = (ownerPid, appName)
+                ownerFirst[pidKey] = MenuBarItemInfo(
+                    windowID: windowID,
+                    appName: appName,
+                    ownerName: ownerName,
+                    title: window[kCGWindowName as String] as? String,
+                    layer: layer
+                )
+            }
         }
-        debugLog("枚举到 \(result.count) 个菜单栏项: \(result.map { "\($0.appName)[\($0.title ?? "?")]" }.prefix(30).joined(separator: ", "))")
+
+        // 用第一个窗口ID作为代表，其余窗口ID存进一个聚合集合供隐藏用
+        for (pidKey, info) in ownerFirst {
+            var item = info
+            item.relatedWindowIDs = ownerWindowIDs[pidKey] ?? []
+            result.append(item)
+        }
+        debugLog("枚举到 \(result.count) 个应用菜单栏项: \(result.map { "\($0.appName)(\($0.relatedWindowIDs.count)窗)" }.joined(separator: ", "))")
         return result
     }
 
@@ -84,38 +110,31 @@ enum MenuBarManager {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// 隐藏/显示某个菜单栏项（基于 ownerPID + 窗口 ID 定位 AXUIElement 菜单栏项）。
-    /// 通过 kAXHiddenAttribute 实现，需要辅助功能授权。
+    /// 隐藏/显示某个菜单栏项：用公开 API kAXHiddenAttribute（不崩溃，尽力而为）。
+    /// 通过 ownerPID 找到应用进程，遍历它的 AXMenuBarItem 设置隐藏。
     @discardableResult
     static func setHidden(_ item: MenuBarItemInfo, hidden: Bool) -> Bool {
-        guard isTrusted, item.layer == 0 else { return false } // 只处理应用类（layer 0）
-        // 通过 ownerPID 找到应用进程，再枚举它的 AXMenuBarItem，匹配窗口 ID 设置隐藏
+        guard isTrusted else { return false }
         let pid = owningPid(for: item)
+        guard pid > 0 else { return false }
         let appElement = AXUIElementCreateApplication(pid)
         guard let menuBarValue = copyAttribute(appElement, "AXMenuBar" as CFString) else { return false }
         let menuBar = menuBarValue as! AXUIElement
-        guard let items = copyAttribute(menuBar, "AXMenuBarItems" as CFString) as? [AXUIElement] else { return false }
-
-        // 每个 item 都是独立窗口，用它的窗口 ID 与 CGWindow 匹配
+        guard let items = copyAttribute(menuBar, "AXMenuBarItems" as CFString) as? [AXUIElement], !items.isEmpty else { return false }
+        var success = false
         for axItem in items {
-            var titleValue: CFTypeRef?
-            let title = (AXUIElementCopyAttributeValue(axItem, kAXTitleAttribute as CFString, &titleValue) == .success)
-                ? (titleValue as? String ?? "") : ""
             let result = AXUIElementSetAttributeValue(axItem, kAXHiddenAttribute as CFString, hidden as CFBoolean)
-            debugLog("setHidden \(item.appName)[\(title)] hidden=\(hidden) -> \(result.rawValue)")
-            if result == .success { return true }
+            debugLog("setHidden \(item.appName) hidden=\(hidden) -> \(result.rawValue)")
+            if result == .success { success = true }
         }
-        return false
+        return success
     }
 
-    /// 从 MenuBarItemInfo 获取 ownerPID（存进去了）
+    /// 从应用名查 PID
     private static func owningPid(for item: MenuBarItemInfo) -> pid_t {
-        if let app = NSWorkspace.shared.runningApplications.first(where: {
+        NSWorkspace.shared.runningApplications.first {
             ($0.localizedName ?? "") == item.appName || ($0.bundleIdentifier ?? "") == item.ownerName
-        }) {
-            return app.processIdentifier
-        }
-        return 0
+        }?.processIdentifier ?? 0
     }
 
     // MARK: - AX 辅助
@@ -133,6 +152,10 @@ enum MenuBarManager {
             .appendingPathComponent("myapp", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         let url = base.appendingPathComponent("menubar-debug.log")
+        // 限 200KB，超出则重写，避免无限增长
+        if (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) ?? 0 > 200_000 {
+            try? FileManager.default.removeItem(at: url)
+        }
         let line = "\(Date()) \(message)\n"
         guard let data = line.data(using: .utf8) else { return }
         if FileManager.default.fileExists(atPath: url.path) {
