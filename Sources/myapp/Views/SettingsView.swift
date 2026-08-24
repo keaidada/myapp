@@ -67,12 +67,32 @@ struct SettingsView: View {
             }
             Section("菜单栏图标") {
                 if !isTrusted {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Label("需要辅助功能权限才能管理菜单栏图标", systemImage: "lock.fill")
                             .font(.callout)
                             .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("授权步骤：")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                            Text("1. 点击下方按钮，打开系统设置")
+                            Text("2. 在「隐私与安全性 → 辅助功能」中找到 myapp 并打开开关")
+                            Text("3. 回到本窗口，会自动开始扫描（无需手动刷新）")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         Button("授权辅助功能…") {
                             MenuBarManager.requestAccessibilityPermission()
+                            // 轮询等待授权：授权成功立即刷新
+                            Task {
+                                while !MenuBarManager.isTrusted {
+                                    try? await Task.sleep(nanoseconds: 500_000_000)
+                                }
+                                await MainActor.run {
+                                    isTrusted = true
+                                    refresh()
+                                }
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -80,6 +100,7 @@ struct SettingsView: View {
                 } else {
                     HStack {
                         Button("仅保留系统图标") {
+                            if menuBarGroups.isEmpty { refresh() }
                             applyDefaultRule()
                         }
                         .help("隐藏所有非系统应用（/System 或 Apple 出品）的菜单栏图标")
@@ -143,20 +164,26 @@ struct SettingsView: View {
 
     private func savePrefs() {
         UserDefaults.standard.set(Array(hiddenApps), forKey: Self.prefsKey)
+        // 调试：确认持久化
+        NSLog("menuBarHiddenApps saved: \(hiddenApps.sorted())")
+        let log = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("myapp/menubar-debug.log")
+        let line = "\(Date()) savePrefs: \(hiddenApps.sorted())\n"
+        try? line.data(using: .utf8)?.write(to: log, options: .atomic)
     }
 
     private func refresh() {
         isTrusted = MenuBarManager.isTrusted
         guard isTrusted else { return }
         refreshing = true
-        DispatchQueue.main.async {
-            menuBarGroups = MenuBarManager.groupedByApp(MenuBarManager.menuBarItems())
-            refreshing = false
-            // 重新应用已保存的隐藏偏好
-            for group in menuBarGroups where hiddenApps.contains(group.name) {
-                for item in group.items {
-                    MenuBarManager.setHidden(item, hidden: true)
-                }
+        // 同步执行，避免异步竞态（日志确认入口）
+        let items = MenuBarManager.menuBarItems()
+        menuBarGroups = MenuBarManager.groupedByApp(items)
+        refreshing = false
+        // 重新应用已保存的隐藏偏好
+        for group in menuBarGroups where hiddenApps.contains(group.name) {
+            for item in group.items {
+                MenuBarManager.setHidden(item, hidden: true)
             }
         }
     }

@@ -36,5 +36,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --sign - "$APP"  # ad-hoc 签名
+# 优先用固定证书签名（CDHash 稳定，辅助功能授权不随打包失效）；
+# 无证书时退回 ad-hoc（每次签名变化，需重新授权辅助功能）
+if security find-identity -p codesigning 2>/dev/null | grep -q "myapp-dev"; then
+    codesign --force --sign "myapp-dev" "$APP"
+else
+    codesign --force --sign - "$APP"
+fi
 echo "✅ 打包完成: $APP"
