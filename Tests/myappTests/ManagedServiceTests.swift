@@ -65,6 +65,15 @@ struct ManagedServiceTests {
         let service = try JSONDecoder().decode(ManagedService.self, from: Data(json.utf8))
         #expect(service.launchCount == 0)
         #expect(service.lastLaunchedAt == nil)
+        #expect(service.aliases.isEmpty)
+    }
+
+    @Test func aliasesRoundtrip() throws {
+        let service = ManagedService(name: "TencentMeeting", category: "通讯",
+                                     aliases: ["腾讯会议"])
+        let data = try JSONEncoder().encode(service)
+        let decoded = try JSONDecoder().decode(ManagedService.self, from: data)
+        #expect(decoded.aliases == ["腾讯会议"])
     }
 }
 

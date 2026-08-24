@@ -73,19 +73,19 @@ struct ContentView: View {
         if case .hot = filter {
             let hot = store.hotServices(limit: 10)
             guard !searchText.isEmpty else { return hot }
-            return hot.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText)
-                    || $0.category.localizedCaseInsensitiveContains(searchText)
-                    || $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
-            }
+            return hot.filter { matchesSearch($0, searchText) }
         }
         let matched = store.services.filter { filterMatches($0) }
         guard !searchText.isEmpty else { return matched }
-        return matched.filter {
-            $0.name.localizedCaseInsensitiveContains(searchText)
-                || $0.category.localizedCaseInsensitiveContains(searchText)
-                || $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
-        }
+        return matched.filter { matchesSearch($0, searchText) }
+    }
+
+    /// 搜索匹配：名称 / 别名 / 分类 / 标签
+    private func matchesSearch(_ service: ManagedService, _ text: String) -> Bool {
+        service.name.localizedCaseInsensitiveContains(text)
+            || service.aliases.contains { $0.localizedCaseInsensitiveContains(text) }
+            || service.category.localizedCaseInsensitiveContains(text)
+            || service.tags.contains { $0.localizedCaseInsensitiveContains(text) }
     }
 
     private func filterMatches(_ service: ManagedService) -> Bool {

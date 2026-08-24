@@ -35,6 +35,22 @@ struct QuickLaunchMatcherTests {
         #expect(results[0].name == "微信")
     }
 
+    @Test func matchesByAlias() {
+        var s = app("TencentMeeting", tags: ["通讯"])
+        s.aliases = ["腾讯会议"]
+        let results = QuickLaunchMatcher.ranked([s], query: "腾讯会议")
+        #expect(results.count == 1)
+        #expect(results[0].name == "TencentMeeting")
+    }
+
+    @Test func aliasMatchRanksLikeName() {
+        var a = app("TencentMeeting")
+        a.aliases = ["腾讯会议"]
+        let b = app("企业微信")
+        let results = QuickLaunchMatcher.ranked([b, a], query: "腾讯")
+        #expect(results.first?.name == "TencentMeeting")
+    }
+
     @Test func matchesByNameContains() {
         let services = [app("企业微信"), app("微信读书")]
         let results = QuickLaunchMatcher.ranked(services, query: "微信")

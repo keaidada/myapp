@@ -118,7 +118,8 @@ struct DiscoveryView: View {
                 icon: "app",
                 kind: .app,
                 appPath: app.path,
-                appIconData: appIconData(for: app.path)
+                appIconData: appIconData(for: app.path),
+                aliases: app.aliases
             )
             try? store.add(service)
         }
@@ -231,7 +232,8 @@ struct DiscoveryView: View {
                         icon: "app",
                         kind: .app,
                         appPath: pair.app.path,
-                        appIconData: Self.pngData(from: pair.image)
+                        appIconData: Self.pngData(from: pair.image),
+                        aliases: pair.app.aliases
                     )
                 }
             }.value

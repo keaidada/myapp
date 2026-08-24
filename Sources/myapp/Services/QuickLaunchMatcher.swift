@@ -5,6 +5,7 @@ enum QuickLaunchMatcher {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return true }
         return service.name.localizedCaseInsensitiveContains(q)
+            || service.aliases.contains { $0.localizedCaseInsensitiveContains(q) }
             || service.category.localizedCaseInsensitiveContains(q)
             || service.tags.contains { $0.localizedCaseInsensitiveContains(q) }
     }
@@ -18,6 +19,7 @@ enum QuickLaunchMatcher {
         func score(_ s: ManagedService) -> Int {
             if s.name.lowercased().hasPrefix(q.lowercased()) { return 0 }
             if s.name.localizedCaseInsensitiveContains(q) { return 1 }
+            if s.aliases.contains(where: { $0.localizedCaseInsensitiveContains(q) }) { return 1 }
             if s.tags.contains(where: { $0.localizedCaseInsensitiveContains(q) }) { return 2 }
             if s.category.localizedCaseInsensitiveContains(q) { return 3 }
             return 4

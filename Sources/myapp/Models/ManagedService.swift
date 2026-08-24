@@ -21,6 +21,7 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
     var tags: [String] = []    // 标签（用于分类整理）
     var launchCount = 0        // 启动次数（最近热度统计）
     var lastLaunchedAt: Date?  // 最近一次启动时间
+    var aliases: [String] = [] // 搜索别名（如英文名对应的中文名）
 
     /// 容错解码：缺失字段一律用默认值，避免历史/手工 JSON 缺字段导致整体加载失败
     init(
@@ -43,7 +44,8 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
         appIconData: Data? = nil,
         tags: [String] = [],
         launchCount: Int = 0,
-        lastLaunchedAt: Date? = nil
+        lastLaunchedAt: Date? = nil,
+        aliases: [String] = []
     ) {
         self.id = id
         self.name = name
@@ -65,13 +67,14 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
         self.tags = tags
         self.launchCount = launchCount
         self.lastLaunchedAt = lastLaunchedAt
+        self.aliases = aliases
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, category, icon, kind, appPath, url, command
         case checkURL, statusCommand, startCommand, stopCommand, restartCommand
         case pidPattern, sortOrder, variables, appIconData, tags
-        case launchCount, lastLaunchedAt
+        case launchCount, lastLaunchedAt, aliases
     }
 
     init(from decoder: Decoder) throws {
@@ -96,5 +99,6 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         launchCount = try c.decodeIfPresent(Int.self, forKey: .launchCount) ?? 0
         lastLaunchedAt = try c.decodeIfPresent(Date.self, forKey: .lastLaunchedAt)
+        aliases = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
     }
 }
