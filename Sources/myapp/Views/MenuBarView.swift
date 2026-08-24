@@ -23,6 +23,14 @@ struct MenuBarView: View {
                     .font(.caption)
                     .foregroundStyle(viewModel.hasDownService ? .red : .secondary)
             }
+            // 明显的设置入口（Settings scene 在 macOS 里默认藏在应用菜单，很多人找不到）
+            Button {
+                openSettings()
+            } label: {
+                Label("设置…", systemImage: "gearshape")
+                    .font(.callout)
+            }
+            .buttonStyle(.borderless)
             Divider()
 
             if !downServices.isEmpty {
@@ -101,6 +109,11 @@ struct MenuBarView: View {
         case .stopped: .gray
         case .unknown: .gray.opacity(0.5)
         }
+    }
+
+    /// 打开设置窗口（等价于菜单栏 myapp → 设置… 或 ⌘,）
+    private func openSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 }
 

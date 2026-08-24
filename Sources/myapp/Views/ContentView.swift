@@ -341,6 +341,12 @@ struct ContentView: View {
                 } label: {
                     Label("打开数据目录", systemImage: "folder")
                 }
+                Divider()
+                Button {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                } label: {
+                    Label("设置…", systemImage: "gearshape")
+                }
             } label: {
                 Label("更多", systemImage: "ellipsis.circle")
             }
