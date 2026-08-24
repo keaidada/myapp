@@ -118,9 +118,12 @@ struct DiscoveryView: View {
                 icon: "app",
                 kind: .app,
                 appPath: app.path,
-                appIconData: appIconData(for: app.path),
                 aliases: app.aliases
             )
+            // 图标写独立文件（icons/<id>.png），避免 services.json 膨胀到几百 MB
+            if let iconData = appIconData(for: app.path) {
+                try? iconData.write(to: ServiceIconView.iconFileURL(for: service.id), options: .atomic)
+            }
             try? store.add(service)
         }
         .buttonStyle(.borderedProminent)
@@ -223,7 +226,7 @@ struct DiscoveryView: View {
         Task {
             // 主线程取图标引用（系统缓存，很快）
             let pairs = targets.map { (app: $0, image: NSWorkspace.shared.icon(forFile: $0.path)) }
-            // 后台线程做 PNG 编码（109 个应用的编码是卡顿根源）
+            // 后台线程只做服务元数据（图标文件写入在主线程完成，避免 id 错位）
             let services = await Task.detached(priority: .userInitiated) {
                 pairs.map { pair in
                     ManagedService(
@@ -232,11 +235,16 @@ struct DiscoveryView: View {
                         icon: "app",
                         kind: .app,
                         appPath: pair.app.path,
-                        appIconData: Self.pngData(from: pair.image),
                         aliases: pair.app.aliases
                     )
                 }
             }.value
+            // 图标写独立文件（icons/<id>.png），JSON 只存元数据，避免 services.json 膨胀
+            for service in services {
+                if let png = appIconData(for: service.appPath ?? "") {
+                    try? png.write(to: ServiceIconView.iconFileURL(for: service.id), options: .atomic)
+                }
+            }
             try? store.addAll(services)
             isAddingApps = false
         }
