@@ -117,8 +117,7 @@ struct SettingsView: View {
                     } else {
                         ForEach(menuBarGroups, id: \.name) { group in
                             HStack {
-                                Image(systemName: isSystemApp(group.name) ? "apple.logo" : "app.dashed")
-                                    .foregroundStyle(isSystemApp(group.name) ? Color.secondary : Color.orange)
+                                appIcon(for: group)
                                 Text(group.name)
                                     .lineLimit(1)
                                 Spacer()
@@ -218,6 +217,20 @@ struct SettingsView: View {
             }
         }
         savePrefs()
+    }
+
+    /// 取菜单栏项所属应用的真实图标
+    @ViewBuilder
+    private func appIcon(for group: (name: String, pid: pid_t, items: [MenuBarItemInfo])) -> some View {
+        if let app = NSWorkspace.shared.runningApplications.first(where: { ($0.localizedName ?? "") == group.name || Int($0.processIdentifier) == Int(group.pid) }),
+           let appIcon = app.icon {
+            Image(nsImage: appIcon)
+                .resizable()
+                .frame(width: 16, height: 16)
+        } else {
+            Image(systemName: isSystemApp(group.name) ? "apple.logo" : "app.dashed")
+                .foregroundStyle(isSystemApp(group.name) ? Color.secondary : Color.orange)
+        }
     }
 
     /// 系统应用判定：Apple 出品（bundle 前缀 com.apple）或路径在系统目录

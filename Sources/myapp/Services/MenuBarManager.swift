@@ -9,6 +9,8 @@ struct MenuBarItemInfo: Identifiable {
     let ownerName: String?
     let title: String?
     let layer: Int
+    /// 拥有该菜单栏图标的应用 PID（来自窗口 OwnerPID，精确）
+    let ownerPID: pid_t
     /// 同一应用的所有菜单栏窗口ID（隐藏时全部处理，兼容微信多容器）
     var relatedWindowIDs: [CGWindowID] = []
 
@@ -80,7 +82,8 @@ enum MenuBarManager {
                     appName: appName,
                     ownerName: ownerName,
                     title: window[kCGWindowName as String] as? String,
-                    layer: layer
+                    layer: layer,
+                    ownerPID: ownerPid
                 )
             }
         }
@@ -110,10 +113,18 @@ enum MenuBarManager {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// 隐藏/显示某个菜单栏项：用公开 API kAXHiddenAttribute（不崩溃，尽力而为）。
-    /// 通过 ownerPID 找到应用进程，遍历它的 AXMenuBarItem 设置隐藏。
+    /// 隐藏/显示某个菜单栏项：用公开 AX kAXHiddenAttribute（稳定、不崩溃）。
+    /// 注意：对用全宽容器窗口承载 NSStatusItem 的应用（如微信/元宝）可能无法隐藏，
+    /// 这是 macOS 的系统限制（Bartender 靠私有 API + 屏幕录制，但脆裂且随系统更新可能失效）。
     @discardableResult
     static func setHidden(_ item: MenuBarItemInfo, hidden: Bool) -> Bool {
+        let ok = applyAXHidden(item, hidden: hidden)
+        debugLog("setHidden \(item.appName) hidden=\(hidden) via AX -> \(ok ? "成功" : "失败(应用可能不响应)")")
+        return ok
+    }
+
+    /// AX kAXHiddenAttribute 方式（标准 NSStatusItem）
+    private static func applyAXHidden(_ item: MenuBarItemInfo, hidden: Bool) -> Bool {
         guard isTrusted else { return false }
         let pid = owningPid(for: item)
         guard pid > 0 else { return false }
@@ -124,15 +135,15 @@ enum MenuBarManager {
         var success = false
         for axItem in items {
             let result = AXUIElementSetAttributeValue(axItem, kAXHiddenAttribute as CFString, hidden as CFBoolean)
-            debugLog("setHidden \(item.appName) hidden=\(hidden) -> \(result.rawValue)")
             if result == .success { success = true }
         }
         return success
     }
 
-    /// 从应用名查 PID
+    /// 从应用名查 PID（用枚举时记录的真实 ownerPID，最精确）
     private static func owningPid(for item: MenuBarItemInfo) -> pid_t {
-        NSWorkspace.shared.runningApplications.first {
+        if item.ownerPID > 0 { return item.ownerPID }
+        return NSWorkspace.shared.runningApplications.first {
             ($0.localizedName ?? "") == item.appName || ($0.bundleIdentifier ?? "") == item.ownerName
         }?.processIdentifier ?? 0
     }
