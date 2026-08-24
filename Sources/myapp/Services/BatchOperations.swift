@@ -14,11 +14,15 @@ enum BatchOperations {
 
     static func launchAll(
         _ services: [ManagedService],
-        controller: ServiceController = ServiceController()
+        controller: ServiceController = ServiceController(),
+        onLaunched: ((ManagedService) -> Void)? = nil
     ) async -> Summary {
         await summarize(services) { service in
             let result = (try? await controller.launch(service))
                 ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+            if result.exitCode == 0 {
+                onLaunched?(service)
+            }
             return result.exitCode == 0
         }
     }

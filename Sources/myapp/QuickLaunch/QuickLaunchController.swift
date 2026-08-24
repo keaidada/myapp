@@ -131,6 +131,9 @@ final class QuickLaunchController {
         Task {
             let result = (try? await controller.launch(service))
                 ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+            if result.exitCode == 0 {
+                storeProvider()?.recordLaunch(service.id)
+            }
             if let log = logProvider() {
                 log.record(serviceName: service.name, command: logText, result: result)
             }

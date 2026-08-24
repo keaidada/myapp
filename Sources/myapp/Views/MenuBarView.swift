@@ -36,7 +36,13 @@ struct MenuBarView: View {
                             Text(service.name).lineLimit(1)
                             Spacer()
                             Button {
-                                Task { _ = try? await controller.launch(service) }
+                                Task {
+                                    let result = (try? await controller.launch(service))
+                                        ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+                                    if result.exitCode == 0 {
+                                        store.recordLaunch(service.id)
+                                    }
+                                }
                             } label: {
                                 Image(systemName: "play.fill").frame(width: 18)
                             }
@@ -64,6 +70,9 @@ struct MenuBarView: View {
                             Task {
                                 let result = (try? await controller.launch(service))
                                     ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+                                if result.exitCode == 0 {
+                                    store.recordLaunch(service.id)
+                                }
                                 log.record(serviceName: service.name,
                                            command: CommandLogging.launchCommandText(for: service),
                                            result: result)

@@ -19,6 +19,8 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
     var variables: [String: String] = [:] // 命令模板变量
     var appIconData: Data?     // 真实应用图标 PNG（kind == .app 时可选）
     var tags: [String] = []    // 标签（用于分类整理）
+    var launchCount = 0        // 启动次数（最近热度统计）
+    var lastLaunchedAt: Date?  // 最近一次启动时间
 
     /// 容错解码：缺失字段一律用默认值，避免历史/手工 JSON 缺字段导致整体加载失败
     init(
@@ -39,7 +41,9 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
         sortOrder: Int = 0,
         variables: [String: String] = [:],
         appIconData: Data? = nil,
-        tags: [String] = []
+        tags: [String] = [],
+        launchCount: Int = 0,
+        lastLaunchedAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -59,12 +63,15 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
         self.variables = variables
         self.appIconData = appIconData
         self.tags = tags
+        self.launchCount = launchCount
+        self.lastLaunchedAt = lastLaunchedAt
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, category, icon, kind, appPath, url, command
         case checkURL, statusCommand, startCommand, stopCommand, restartCommand
         case pidPattern, sortOrder, variables, appIconData, tags
+        case launchCount, lastLaunchedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -87,5 +94,7 @@ struct ManagedService: Identifiable, Codable, Hashable, Sendable {
         variables = try c.decodeIfPresent([String: String].self, forKey: .variables) ?? [:]
         appIconData = try c.decodeIfPresent(Data.self, forKey: .appIconData)
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        launchCount = try c.decodeIfPresent(Int.self, forKey: .launchCount) ?? 0
+        lastLaunchedAt = try c.decodeIfPresent(Date.self, forKey: .lastLaunchedAt)
     }
 }

@@ -42,6 +42,7 @@ struct ContentView: View {
         case untagged
         case running   // 动态标签：运行中
         case stopped   // 动态标签：未运行
+        case hot       // 最近热度 Top10
 
         var label: String {
             switch self {
@@ -51,6 +52,7 @@ struct ContentView: View {
             case .untagged: "未打标签"
             case .running: "运行中"
             case .stopped: "未运行"
+            case .hot: "最近热度"
             }
         }
     }
@@ -68,6 +70,15 @@ struct ContentView: View {
     }
 
     private var filteredServices: [ManagedService] {
+        if case .hot = filter {
+            let hot = store.hotServices(limit: 10)
+            guard !searchText.isEmpty else { return hot }
+            return hot.filter {
+                $0.name.localizedCaseInsensitiveContains(searchText)
+                    || $0.category.localizedCaseInsensitiveContains(searchText)
+                    || $0.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+            }
+        }
         let matched = store.services.filter { filterMatches($0) }
         guard !searchText.isEmpty else { return matched }
         return matched.filter {
@@ -92,6 +103,43 @@ struct ContentView: View {
             return viewModel.statuses[service.id]?.isHealthy == true
         case .stopped:
             return viewModel.statuses[service.id]?.isHealthy == false
+        case .hot:
+            // 热度 Top10 在 filteredServices 中已按热度排序取前 10，此处放行
+            return true
+        }
+    }
+
+    /// 当前是否最近热度视图
+    private var isHotFilter: Bool {
+        if case .hot = filter { return true }
+        return false
+    }
+
+    /// 最近热度 Top10 侧边栏区块
+    private var hotSection: some View {
+        Section("最近热度") {
+            if store.hotServices(limit: 10).isEmpty {
+                Text("还没有使用记录")
+                    .foregroundStyle(.secondary)
+                    .help("启动服务后会自动累计热度")
+            } else {
+                ForEach(store.hotServices(limit: 10)) { service in
+                    HStack(spacing: 6) {
+                        Image(systemName: "flame.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Text(service.name)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(service.launchCount)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    .tag(SidebarFilter.hot)
+                    .help("点击查看最近热度 Top10")
+                }
+            }
         }
     }
 
@@ -104,6 +152,9 @@ struct ContentView: View {
     }
 
     private var sortedServices: [ManagedService] {
+        if case .hot = filter {
+            return filteredServices
+        }
         switch sortMode {
         case .smart:
             return SortUtil.smartSorted(filteredServices, runningSnapshot: statusSnapshot)
@@ -130,6 +181,7 @@ struct ContentView: View {
                     Text(category).tag(SidebarFilter.category(category))
                 }
             }
+            hotSection
             Section {
                 HStack {
                     Text("标签")
@@ -328,6 +380,11 @@ struct ContentView: View {
     // MARK: - Body
 
     var body: some View {
+        applyOverlays(mainContent)
+    }
+
+    /// 主内容：侧栏 + 列表 + 搜索 + 工具栏
+    private var mainContent: some View {
         NavigationSplitView {
             sidebar
         } detail: {
@@ -346,6 +403,7 @@ struct ContentView: View {
                 onEditTags: { service in
                     editingTagsService = service
                 },
+                showsLaunchCount: isHotFilter,
                 isSelectionMode: isSelectionMode,
                 selectedCount: selectedIDs.count,
                 onLaunchSelected: { runSelected(.launch) },
@@ -356,6 +414,11 @@ struct ContentView: View {
                 onClearSelection: { selectedIDs = [] }
             )
         }
+    }
+
+    /// 弹窗 / 对话框等修饰链（拆开降低类型检查压力）
+    private func applyOverlays(_ content: some View) -> some View {
+        content
         .searchable(text: $searchText, placement: .toolbar, prompt: "搜索服务…")
         .toolbar { toolbarItems }
         .sheet(isPresented: $showingEditor) {
@@ -503,6 +566,7 @@ struct ContentView: View {
         .onChange(of: sortMode) { _, _ in
             refreshSortSnapshot()
         }
+ 
     }
 
     // MARK: - 操作
@@ -531,7 +595,7 @@ struct ContentView: View {
             defer { isBatchRunning = false }
             switch op {
             case .launch:
-                batchSummary = await BatchOperations.launchAll(selectedServices)
+                batchSummary = await BatchOperations.launchAll(selectedServices, onLaunched: { store.recordLaunch($0.id) })
             case .stop:
                 batchSummary = await BatchOperations.stopAll(selectedServices)
             case .restart:
@@ -560,7 +624,7 @@ struct ContentView: View {
             defer { isBatchRunning = false }
             switch op {
             case .launch:
-                batchSummary = await BatchOperations.launchAll(targets)
+                batchSummary = await BatchOperations.launchAll(targets, onLaunched: { store.recordLaunch($0.id) })
             case .stop:
                 batchSummary = await BatchOperations.stopAll(targets)
             case .restart:
@@ -576,7 +640,7 @@ struct ContentView: View {
             defer { isBatchRunning = false }
             switch op {
             case .launch:
-                batchSummary = await BatchOperations.launchAll(store.services)
+                batchSummary = await BatchOperations.launchAll(store.services, onLaunched: { store.recordLaunch($0.id) })
             case .stop:
                 batchSummary = await BatchOperations.stopAll(store.services)
             case .restart:

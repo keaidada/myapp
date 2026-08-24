@@ -51,6 +51,21 @@ struct ManagedServiceTests {
         let box = SendableBox(value: service)
         #expect(box.value.name == "A")
     }
+
+    @Test func launchStatsDefaultToZero() {
+        let service = ManagedService(name: "A", category: "B")
+        #expect(service.launchCount == 0)
+        #expect(service.lastLaunchedAt == nil)
+    }
+
+    @Test func decodesMissingLaunchStatsTolerantly() throws {
+        let json = """
+        {"name": "X", "category": "C"}
+        """
+        let service = try JSONDecoder().decode(ManagedService.self, from: Data(json.utf8))
+        #expect(service.launchCount == 0)
+        #expect(service.lastLaunchedAt == nil)
+    }
 }
 
 struct SendableBox<T: Sendable> {

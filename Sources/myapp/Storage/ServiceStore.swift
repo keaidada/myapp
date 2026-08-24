@@ -174,4 +174,26 @@ final class ServiceStore {
     func count(of tag: String) -> Int {
         services.reduce(0) { $0 + ($1.tags.contains(tag) ? 1 : 0) }
     }
+
+    /// 记录一次启动：次数 +1、更新最近启动时间并写盘
+    func recordLaunch(_ id: UUID) {
+        guard let idx = services.firstIndex(where: { $0.id == id }) else { return }
+        services[idx].launchCount += 1
+        services[idx].lastLaunchedAt = Date()
+        try? save()
+    }
+
+    /// 最近热度 Top N：按启动次数降序，次数相同按最近启动时间新在前
+    func hotServices(limit: Int = 10) -> [ManagedService] {
+        services
+            .filter { $0.launchCount > 0 }
+            .sorted {
+                if $0.launchCount != $1.launchCount {
+                    return $0.launchCount > $1.launchCount
+                }
+                return ($0.lastLaunchedAt ?? .distantPast) > ($1.lastLaunchedAt ?? .distantPast)
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
 }

@@ -59,7 +59,7 @@ struct SettingsView: View {
             }
             Section("数据") {
                 LabeledContent("配置文件", value: ServiceStore.defaultFileURL.path)
-                LabeledContent("版本", value: "myapp v0.8.5")
+                LabeledContent("版本", value: "myapp v0.9.0")
             }
         }
         .formStyle(.grouped)

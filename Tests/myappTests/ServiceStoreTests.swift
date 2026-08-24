@@ -10,6 +10,77 @@ struct ServiceStoreTests {
         #expect(store.services.isEmpty)
     }
 
+    @Test func recordLaunchIncrementsAndPersists() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileURL = dir.appendingPathComponent("services.json")
+
+        let store = ServiceStore(fileURL: fileURL)
+        let service = ManagedService(name: "Ollama", category: "AI")
+        try store.add(service)
+
+        store.recordLaunch(service.id)
+        store.recordLaunch(service.id)
+        #expect(store.services[0].launchCount == 2)
+        #expect(store.services[0].lastLaunchedAt != nil)
+
+        let reloaded = ServiceStore(fileURL: fileURL)
+        #expect(reloaded.services[0].launchCount == 2)
+    }
+
+    @Test func hotServicesSortsByCountThenRecent() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let store = ServiceStore(fileURL: dir.appendingPathComponent("services.json"))
+
+        let a = ManagedService(name: "A", category: "C")
+        let b = ManagedService(name: "B", category: "C")
+        let c = ManagedService(name: "C", category: "C")
+        try store.add(a)
+        try store.add(b)
+        try store.add(c)
+
+        store.recordLaunch(c.id)          // C: 1 次
+        store.recordLaunch(a.id)
+        store.recordLaunch(a.id)          // A: 2 次
+        store.recordLaunch(b.id)          // B: 1 次（晚于 C）
+
+        let hot = store.hotServices(limit: 10)
+        #expect(hot.map(\.name) == ["A", "B", "C"])
+    }
+
+    @Test func hotServicesExcludesNeverLaunched() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let store = ServiceStore(fileURL: dir.appendingPathComponent("services.json"))
+
+        let a = ManagedService(name: "A", category: "C")
+        let b = ManagedService(name: "B", category: "C")
+        try store.add(a)
+        try store.add(b)
+        store.recordLaunch(a.id)
+
+        let hot = store.hotServices(limit: 10)
+        #expect(hot.map(\.name) == ["A"])
+    }
+
+    @Test func hotServicesRespectsLimit() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let store = ServiceStore(fileURL: dir.appendingPathComponent("services.json"))
+
+        for i in 0..<3 {
+            let s = ManagedService(name: "S\(i)", category: "C")
+            try store.add(s)
+            store.recordLaunch(s.id)
+        }
+        #expect(store.hotServices(limit: 2).count == 2)
+    }
+
     @Test func addPersistsAndReloads() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

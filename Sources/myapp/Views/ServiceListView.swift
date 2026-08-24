@@ -8,6 +8,7 @@ struct ServiceListView: View {
     var onMove: ((IndexSet, Int) -> Void)? = nil
     var onTagTap: ((String) -> Void)? = nil
     var onEditTags: ((ManagedService) -> Void)? = nil
+    var showsLaunchCount = false
     var isSelectionMode = false
     var selectedCount = 0
     var onLaunchSelected: (() -> Void)? = nil
@@ -25,7 +26,7 @@ struct ServiceListView: View {
                     if isSelectionMode {
                         selectableRow(service)
                     } else {
-                        ServiceRowView(service: service, onTagTap: onTagTap, onEditTags: { onEditTags?(service) })
+                        ServiceRowView(service: service, onTagTap: onTagTap, onEditTags: { onEditTags?(service) }, showsLaunchCount: showsLaunchCount)
                             .contentShape(Rectangle())
                             // 行点击进详情；行内子按钮（标签/状态/打开等）手势优先，不受影响
                             .onTapGesture { detailServiceID = service.id }

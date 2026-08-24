@@ -4,6 +4,8 @@ struct ServiceRowView: View {
     let service: ManagedService
     var onTagTap: ((String) -> Void)? = nil
     var onEditTags: (() -> Void)? = nil
+    var showsLaunchCount = false
+    @Environment(ServiceStore.self) private var store
     @Environment(DashboardViewModel.self) private var viewModel
     @Environment(CommandLog.self) private var log
     @State private var controller = ServiceController()
@@ -38,6 +40,11 @@ struct ServiceRowView: View {
                 Text(statusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if showsLaunchCount, service.launchCount > 0 {
+                    Text("已启动 \(service.launchCount) 次")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
                 if !service.tags.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(service.tags.prefix(3), id: \.self) { tag in
@@ -138,6 +145,9 @@ struct ServiceRowView: View {
                 } else {
                     result = (try? await controller.launch(service))
                         ?? CommandResult(exitCode: -1, stdout: "", stderr: "启动失败")
+                    if result.exitCode == 0 {
+                        store.recordLaunch(service.id)
+                    }
                 }
                 log.record(
                     serviceName: service.name,
