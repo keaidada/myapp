@@ -1,8 +1,12 @@
-# myapp 🦫
+# myapp
+
+<p align="center">
+  <img src="assets/appicon.png" alt="myapp 图标" width="140" height="140" />
+</p>
 
 一款原生 SwiftUI 编写的 macOS 应用管理器：统一管理本机应用、本地 Web 服务与自定义命令，支持一键启动、状态监控、标签分类与最近热度统计。
 
-> 水豚图标，随开随用。所有数据保存在本地 `~/Library/Application Support/myapp/`，无需联网。
+> **水豚噜噜** 图标，随开随用。所有数据保存在本地 `~/Library/Application Support/myapp/`，无需联网。
 
 ## ✨ 功能
 
