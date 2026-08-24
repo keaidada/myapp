@@ -40,6 +40,8 @@ struct ContentView: View {
         case category(String)
         case tag(String)
         case untagged
+        case running   // 动态标签：运行中
+        case stopped   // 动态标签：未运行
 
         var label: String {
             switch self {
@@ -47,6 +49,8 @@ struct ContentView: View {
             case .category(let c): c
             case .tag(let t): t
             case .untagged: "未打标签"
+            case .running: "运行中"
+            case .stopped: "未运行"
             }
         }
     }
@@ -84,6 +88,18 @@ struct ContentView: View {
             return service.tags.contains(tag)
         case .untagged:
             return service.tags.isEmpty
+        case .running:
+            return viewModel.statuses[service.id]?.isHealthy == true
+        case .stopped:
+            return viewModel.statuses[service.id]?.isHealthy == false
+        }
+    }
+
+    /// 动态标签计数（运行中 / 未运行）
+    private func runningCount(_ isRunning: Bool) -> Int {
+        store.services.reduce(0) { count, service in
+            let healthy = viewModel.statuses[service.id]?.isHealthy ?? false
+            return count + (healthy == isRunning ? 1 : 0)
         }
     }
 
@@ -135,6 +151,28 @@ struct ContentView: View {
             }
             Section("标签") {
                 Text("未打标签").tag(SidebarFilter.untagged)
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                    Text("运行中")
+                    Spacer()
+                    Text("\(runningCount(true))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .tag(SidebarFilter.running)
+                HStack(spacing: 6) {
+                    Image(systemName: "circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("未运行")
+                    Spacer()
+                    Text("\(runningCount(false))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .tag(SidebarFilter.stopped)
                 ForEach(store.allTags, id: \.self) { tag in
                     HStack(spacing: 6) {
                         Image(systemName: "tag")
