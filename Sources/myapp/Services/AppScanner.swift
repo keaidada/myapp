@@ -49,9 +49,9 @@ enum AppScanner {
         }
     }
 
-    /// 读取应用的 CFBundleName / CFBundleDisplayName，返回与包名不同的显示名（去重、去空白）。
-    /// 优先从本地化文件（zh-Hans / zh-Hant / en 的 InfoPlist.strings）读取，
-    /// 再兜底根 Info.plist —— 例如 WeChat 根 plist 只有 "WeChat"，中文名"微信"在 zh-Hans.lproj 里。
+    /// 读取应用的搜索关键词：CFBundleName / CFBundleDisplayName / CFBundleIdentifier。
+    /// 优先本地化文件（zh-Hans 等），再兜底根 Info.plist。
+    /// 额外包含 bundle id —— 让搜索能命中系统元数据（如 "腾讯会议" → com.tencent.meeting 搜 "meeting"）。
     static func displayNames(for appPath: String) -> [String] {
         var names: [String] = []
         let resourcesDir = (appPath as NSString)
@@ -67,6 +67,8 @@ enum AppScanner {
             for key in ["CFBundleName", "CFBundleDisplayName"] {
                 if let value = plist[key] as? String {
                     collect(&names, value)
+                    // bundle id 里的标识词（如 com.bilibili.bilibiliPC -> bilibili）
+                    collectBundleIDParts(&names, value)
                 }
             }
             break // 找到任一本地化文件即停止
@@ -81,8 +83,23 @@ enum AppScanner {
                     collect(&names, value)
                 }
             }
+            // bundle id 本身（如 com.bilibili.bilibiliPC）作为搜索关键词
+            if let bid = plist["CFBundleIdentifier"] as? String {
+                collect(&names, bid)
+                collectBundleIDParts(&names, bid)
+            }
         }
         return names.sorted()
+    }
+
+    /// 从 bundle id 提取标识词（com.tencent.meeting -> tencent, meeting）
+    private static func collectBundleIDParts(_ names: inout [String], _ bid: String) {
+        let parts = bid.components(separatedBy: ".").filter { $0.count > 2 && !$0.hasPrefix("com") && !$0.hasPrefix("cn") }
+        for part in parts {
+            if !part.isEmpty, part.rangeOfCharacter(from: .letters) != nil {
+                collect(&names, part)
+            }
+        }
     }
 
     private static func collect(_ names: inout [String], _ raw: String) {
