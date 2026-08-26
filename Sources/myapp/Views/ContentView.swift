@@ -170,9 +170,10 @@ struct ContentView: View {
     private var sidebar: some View {
         List(selection: $filter) {
             Section("服务") {
-                Text("全部").tag(SidebarFilter.all)
+                Label("全部", systemImage: "square.grid.2x2").tag(SidebarFilter.all)
                 ForEach(store.categories, id: \.self) { category in
-                    Text(category).tag(SidebarFilter.category(category))
+                    Label(category, systemImage: SidebarIcons.icon(forCategory: category))
+                        .tag(SidebarFilter.category(category))
                 }
             }
             hotSection
@@ -196,7 +197,7 @@ struct ContentView: View {
                 Text("标签")
             }
             Section("标签") {
-                Text("未打标签").tag(SidebarFilter.untagged)
+                Label("未打标签", systemImage: "tag.slash").tag(SidebarFilter.untagged)
                 HStack(spacing: 6) {
                     Image(systemName: "circle.fill")
                         .font(.caption)
@@ -221,7 +222,7 @@ struct ContentView: View {
                 .tag(SidebarFilter.stopped)
                 ForEach(store.allTags, id: \.self) { tag in
                     HStack(spacing: 6) {
-                        Image(systemName: "tag")
+                        Image(systemName: SidebarIcons.icon(forTag: tag))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(tag)
