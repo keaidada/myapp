@@ -39,12 +39,21 @@ struct ServiceController {
                 throw CommandRunnerError.launchFailed("未设置命令")
             }
             let resolved = Placeholder.substitute(command, values: service.variables)
+            // 长驻服务（配置了 pidPattern）后台分离启动，避免前台等待 30 秒超时被终止
+            if service.pidPattern != nil {
+                return try await CommandRunner.runDetached(resolved)
+            }
             return try await runner(resolved)
         }
     }
 
     func start(_ service: ManagedService) async throws -> CommandResult {
-        try await runner(service.startCommand ?? service.command ?? "")
+        let cmd = Placeholder.substitute(service.startCommand ?? service.command ?? "", values: service.variables)
+        // 长驻服务后台分离启动
+        if service.pidPattern != nil {
+            return try await CommandRunner.runDetached(cmd)
+        }
+        return try await runner(cmd)
     }
 
     func stop(_ service: ManagedService) async throws -> CommandResult {

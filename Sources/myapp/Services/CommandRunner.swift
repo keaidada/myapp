@@ -23,6 +23,34 @@ enum CommandRunner {
     /// 确保 brew 命令可被发现（Intel Mac 上 /usr/local/bin 也保留）
     static let defaultPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+    /// 后台分离启动长驻服务（如 dsh web、next dev、服务器）。
+    /// 不等待命令结束、不超时终止——进程独立存活，脱离本进程。
+    /// 返回启动是否成功（只判断进程能否拉起，不等待退出）。
+    static func runDetached(
+        _ command: String,
+        environment: [String: String] = [:]
+    ) async throws -> CommandResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        // 用 bash -c 包裹整条命令，让 nohup 守护整个后台任务
+        process.arguments = ["-c", "nohup bash -c '\(command)' >/dev/null 2>&1 &"]
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = defaultPath
+        env.merge(environment) { _, newEnv in newEnv }
+        process.environment = env
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            throw CommandRunnerError.launchFailed(error.localizedDescription)
+        }
+        // 等待 zsh 进程（启动器）退出，后台进程与 zsh 分离
+        process.waitUntilExit()
+        return CommandResult(exitCode: process.terminationStatus, stdout: "", stderr: "")
+    }
+
     static func run(
         _ command: String,
         environment: [String: String] = [:],
