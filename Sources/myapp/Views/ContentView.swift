@@ -70,14 +70,18 @@ struct ContentView: View {
     }
 
     private var filteredServices: [ManagedService] {
-        if case .hot = filter {
-            let hot = store.hotServices(limit: 10)
-            guard !searchText.isEmpty else { return hot }
-            return hot.filter { matchesSearch($0, searchText) }
+        // 有搜索词时跨所有服务搜索，不受当前侧边栏分类/标签限制
+        if !searchText.isEmpty {
+            if case .hot = filter {
+                return store.hotServices(limit: 10).filter { matchesSearch($0, searchText) }
+            }
+            return store.services.filter { matchesSearch($0, searchText) }
         }
-        let matched = store.services.filter { filterMatches($0) }
-        guard !searchText.isEmpty else { return matched }
-        return matched.filter { matchesSearch($0, searchText) }
+        // 无搜索词：按当前筛选
+        if case .hot = filter {
+            return store.hotServices(limit: 10)
+        }
+        return store.services.filter { filterMatches($0) }
     }
 
     /// 搜索匹配：名称 / 别名 / 分类 / 标签
