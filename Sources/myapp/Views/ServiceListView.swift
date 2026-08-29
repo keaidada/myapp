@@ -11,6 +11,7 @@ struct ServiceListView: View {
     var showsLaunchCount = false
     var isSelectionMode = false
     var selectedCount = 0
+    var layoutMode: LayoutMode = .list
     var onLaunchSelected: (() -> Void)? = nil
     var onStopSelected: (() -> Void)? = nil
     var onRestartSelected: (() -> Void)? = nil
@@ -21,46 +22,94 @@ struct ServiceListView: View {
 
     var body: some View {
         NavigationStack {
-            List(selection: $selection) {
-                ForEach(services) { service in
-                    if isSelectionMode {
-                        selectableRow(service)
-                    } else {
-                        ServiceRowView(service: service, onTagTap: onTagTap, onEditTags: { onEditTags?(service) }, showsLaunchCount: showsLaunchCount)
-                            .contentShape(Rectangle())
-                            // 行点击进详情；行内子按钮（标签/状态/打开等）手势优先，不受影响
-                            .onTapGesture { detailServiceID = service.id }
+            switch layoutMode {
+            case .list:
+                listLayout
+            case .grid:
+                gridLayout
+            }
+        }
+    }
+
+    // MARK: - 列表布局
+
+    private var listLayout: some View {
+        List(selection: $selection) {
+            ForEach(services) { service in
+                if isSelectionMode {
+                    selectableRow(service)
+                } else {
+                    ServiceRowView(service: service, onTagTap: onTagTap, onEditTags: { onEditTags?(service) }, showsLaunchCount: showsLaunchCount)
+                        .contentShape(Rectangle())
+                        .onTapGesture { detailServiceID = service.id }
+                        .contextMenu {
+                            Button("标签…") { onEditTags?(service) }
+                            Button("编辑…") { onEdit(service) }
+                            Button("删除", role: .destructive) { onDelete(service) }
+                        }
+                }
+            }
+            .onMove { indices, offset in
+                onMove?(indices, offset)
+            }
+        }
+        .navigationDestination(item: $detailServiceID) { id in
+            if let service = services.first(where: { $0.id == id }) {
+                ServiceDetailView(service: service)
+            }
+        }
+        .overlay {
+            if services.isEmpty { emptyView }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if selectedCount > 0 { selectionBar }
+        }
+    }
+
+    // MARK: - 卡片 / 积木布局
+
+    private var gridLayout: some View {
+        Group {
+            if services.isEmpty {
+                emptyView
+            } else {
+                ScrollView {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 120, maximum: 200), spacing: 16)],
+                        spacing: 16
+                    ) {
+                        ForEach(services) { service in
+                            AppGridCardView(
+                                service: service,
+                                onSelect: { detailServiceID = service.id }
+                            )
                             .contextMenu {
                                 Button("标签…") { onEditTags?(service) }
                                 Button("编辑…") { onEdit(service) }
                                 Button("删除", role: .destructive) { onDelete(service) }
                             }
+                        }
                     }
-                }
-                .onMove { indices, offset in
-                    onMove?(indices, offset)
-                }
-            }
-            .navigationDestination(item: $detailServiceID) { id in
-                if let service = services.first(where: { $0.id == id }) {
-                    ServiceDetailView(service: service)
-                }
-            }
-            .overlay {
-                if services.isEmpty {
-                    ContentUnavailableView(
-                        "暂无服务",
-                        systemImage: "square.stack.3d.up.slash",
-                        description: Text("点右上角 + 添加一个服务")
-                    )
-                }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if selectedCount > 0 {
-                    selectionBar
+                    .padding(16)
                 }
             }
         }
+        .navigationDestination(item: $detailServiceID) { id in
+            if let service = services.first(where: { $0.id == id }) {
+                ServiceDetailView(service: service)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if selectedCount > 0 { selectionBar }
+        }
+    }
+
+    private var emptyView: some View {
+        ContentUnavailableView(
+            "暂无服务",
+            systemImage: "square.stack.3d.up.slash",
+            description: Text("点右上角 + 添加一个服务")
+        )
     }
 
     /// 多选模式下的行：复选框 + 点击切换选中

@@ -26,6 +26,8 @@ struct ContentView: View {
     @State private var showingTagManager = false
     @State private var editingTagsService: ManagedService?
     @State private var sortMode: SortMode = .smart
+    /// 展示布局：列表 / 卡片
+    @State private var layoutMode: LayoutMode = .list
     /// 排序用状态快照：点击启动/关闭或轮询更新不会触发重排（避免列表跳动）
     @State private var statusSnapshot: [UUID: Bool] = [:]
 
@@ -165,6 +167,24 @@ struct ContentView: View {
         selectedIDs.isEmpty ? "批量操作" : "批量操作（\(selectedIDs.count)）"
     }
 
+    /// 布局切换按钮（列表 / 卡片）
+    private func layoutButton(_ mode: LayoutMode) -> some View {
+        Button {
+            layoutMode = mode
+        } label: {
+            Image(systemName: mode.systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(layoutMode == mode ? Color.accentColor : Color.secondary)
+                .padding(6)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(layoutMode == mode ? Color.accentColor.opacity(0.15) : .clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(mode.help)
+    }
+
     // MARK: - 侧边栏
 
     private var sidebar: some View {
@@ -266,6 +286,17 @@ struct ContentView: View {
                     Label(isSelectionMode ? "完成" : "选择", systemImage: "checkmark.circle")
                 }
                 .help(isSelectionMode ? "退出多选模式" : "进入多选模式（点击行即可勾选）")
+
+                // 列表 / 卡片布局切换：两个紧凑图标按钮，与工具栏风格统一
+                HStack(spacing: 2) {
+                    layoutButton(.list)
+                    layoutButton(.grid)
+                }
+                .padding(2)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.gray.opacity(0.1))
+                )
 
                 Menu {
                     Picker("排序", selection: $sortMode) {
@@ -407,6 +438,7 @@ struct ContentView: View {
                 showsLaunchCount: isHotFilter,
                 isSelectionMode: isSelectionMode,
                 selectedCount: selectedIDs.count,
+                layoutMode: layoutMode,
                 onLaunchSelected: { runSelected(.launch) },
                 onStopSelected: { runSelected(.stop) },
                 onRestartSelected: { runSelected(.restart) },
